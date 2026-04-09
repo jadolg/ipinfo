@@ -1,0 +1,13 @@
+ip.akiel.dev {
+	reverse_proxy localhost:8080
+}
+
+ipv4.akiel.dev ipv6.akiel.dev {
+	@json path /json
+	handle @json {
+		reverse_proxy localhost:8080
+	}
+	handle {
+		redir https://ip.akiel.dev{uri} 302
+	}
+}
