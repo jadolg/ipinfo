@@ -4,7 +4,7 @@ Shows your public IP address along with hostname, ISP, location, and whether
 you are connecting through a Tor exit node. Handles IPv4 and IPv6 separately
 so you can see both at once.
 
-Live at: https://ip.akiel.dev
+Live at: https://ip.r4bbit.net
 
 ## Endpoints
 
