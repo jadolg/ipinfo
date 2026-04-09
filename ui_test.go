@@ -29,7 +29,10 @@ func newUIServer(t *testing.T, jsonHandler http.HandlerFunc) string {
 
 func browserCtx(t *testing.T) context.Context {
 	t.Helper()
-	ctx, cancel := chromedp.NewContext(context.Background())
+	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.NoSandbox)
+	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	t.Cleanup(cancel)
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	t.Cleanup(cancel)
 	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
 	t.Cleanup(cancel)
