@@ -75,6 +75,12 @@ func main() {
 				Sources:     cli.EnvVars("IPINFO_TOR_REFRESH"),
 				Destination: &cfg.TorRefresh,
 			},
+			&cli.StringFlag{
+				Name:        "redis-addr",
+				Usage:       "Redis address for IP info caching (e.g. redis:6379)",
+				Sources:     cli.EnvVars("IPINFO_REDIS_ADDR"),
+				Destination: &cfg.RedisAddr,
+			},
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return run(cfg)

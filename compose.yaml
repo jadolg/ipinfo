@@ -5,12 +5,21 @@ services:
     volumes:
       - geoip-data:/data
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    expose:
+      - "6379"
+
   ipinfo:
     build: .
     restart: unless-stopped
     depends_on:
       init-data:
         condition: service_completed_successfully
+      redis:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:
@@ -23,6 +32,7 @@ services:
       IPINFO_TOR_REFRESH: ${IPINFO_TOR_REFRESH:-1h}
       IPINFO_IPV4_URL: ${IPINFO_IPV4_URL:-}
       IPINFO_IPV6_URL: ${IPINFO_IPV6_URL:-}
+      IPINFO_REDIS_ADDR: redis:6379
     volumes:
       - geoip-data:/data
     read_only: true
