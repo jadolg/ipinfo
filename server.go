@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,10 +10,15 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oschwald/geoip2-golang"
 )
+
+var jsonBufPool = sync.Pool{
+	New: func() any { return new(bytes.Buffer) },
+}
 
 func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
@@ -20,7 +26,7 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 
 	info := IPInfo{IPAddress: ip}
 
-	if parsed != nil {
+	if parsed != nil && r.URL.Query().Has("hostname") {
 		names, err := net.LookupAddr(ip)
 		if err == nil && len(names) > 0 {
 			info.Hostname = strings.TrimSuffix(names[0], ".")
@@ -59,11 +65,15 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 		info.TorExit = s.tor.contains(ip)
 	}
 
+	buf := jsonBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	_ = json.NewEncoder(buf).Encode(info)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(info)
+	_, _ = w.Write(buf.Bytes())
+
+	jsonBufPool.Put(buf)
 }
 
 func clientIP(r *http.Request) string {
@@ -120,12 +130,12 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 			if cityDB, err := geoip2.Open(cityDBPath); err != nil {
 				log.Printf("warning: could not open city DB: %v", err)
 			} else {
-				srv.cityDB = cityDB
+				srv.cityDB.Store(cityDB)
 			}
 			if asnDB, err := geoip2.Open(asnDBPath); err != nil {
 				log.Printf("warning: could not open ASN DB: %v", err)
 			} else {
-				srv.asnDB = asnDB
+				srv.asnDB.Store(asnDB)
 			}
 		}
 		go func() {
@@ -140,7 +150,7 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 		if cityDB, err := geoip2.Open(cityDBPath); err != nil {
 			log.Printf("warning: could not open city DB %q: %v", cityDBPath, err)
 		} else {
-			srv.cityDB = cityDB
+			srv.cityDB.Store(cityDB)
 			defer func(cityDB *geoip2.Reader) {
 				err := cityDB.Close()
 				if err != nil {
@@ -151,7 +161,7 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 		if asnDB, err := geoip2.Open(asnDBPath); err != nil {
 			log.Printf("warning: could not open ASN DB %q: %v", asnDBPath, err)
 		} else {
-			srv.asnDB = asnDB
+			srv.asnDB.Store(asnDB)
 			defer func(asnDB *geoip2.Reader) {
 				err := asnDB.Close()
 				if err != nil {
@@ -161,7 +171,7 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 		}
 	}
 
-	tor := &torExitSet{ips: make(map[string]struct{})}
+	tor := newTorExitSet()
 	srv.tor = tor
 	tor.refresh()
 	go func() {
@@ -173,7 +183,7 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 	}()
 
 	mux := http.NewServeMux()
-	cfg := indexConfig{IPv4URL: ipv4URL, IPv6URL: ipv6URL}
+	indexPage := renderIndex(indexConfig{IPv4URL: ipv4URL, IPv6URL: ipv6URL})
 
 	mux.HandleFunc("/json", srv.handleJSON)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +192,7 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = indexTmpl.Execute(w, cfg)
+		_, _ = w.Write(indexPage)
 	})
 
 	_, port, err := net.SplitHostPort(addr)
@@ -201,10 +211,17 @@ func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, 
 
 	fmt.Printf("Listening on 0.0.0.0:%s and [::]:%s\n", port, port)
 
+	httpSrv := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
 	errc := make(chan error, 2)
 	for _, l := range []net.Listener{l4, l6} {
 		go func(l net.Listener) {
-			errc <- http.Serve(l, mux)
+			errc <- httpSrv.Serve(l)
 		}(l)
 	}
 	return <-errc

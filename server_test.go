@@ -9,9 +9,13 @@ import (
 )
 
 func newTestServer(torIPs ...string) *server {
-	tor := &torExitSet{ips: make(map[string]struct{})}
-	for _, ip := range torIPs {
-		tor.ips[ip] = struct{}{}
+	tor := newTorExitSet()
+	if len(torIPs) > 0 {
+		m := make(map[string]struct{}, len(torIPs))
+		for _, ip := range torIPs {
+			m[ip] = struct{}{}
+		}
+		tor.ips.Store(&m)
 	}
 	return &server{tor: tor}
 }

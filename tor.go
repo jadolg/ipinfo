@@ -6,18 +6,23 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
+	"sync/atomic"
 )
 
 type torExitSet struct {
-	mu  sync.RWMutex
-	ips map[string]struct{}
+	ips atomic.Pointer[map[string]struct{}]
+}
+
+func newTorExitSet() *torExitSet {
+	t := &torExitSet{}
+	empty := make(map[string]struct{})
+	t.ips.Store(&empty)
+	return t
 }
 
 func (t *torExitSet) contains(ip string) bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	_, ok := t.ips[ip]
+	m := t.ips.Load()
+	_, ok := (*m)[ip]
 	return ok
 }
 
@@ -47,8 +52,6 @@ func (t *torExitSet) refresh() {
 		return
 	}
 
-	t.mu.Lock()
-	t.ips = newIPs
-	t.mu.Unlock()
+	t.ips.Store(&newIPs)
 	log.Printf("tor exit list updated: %d nodes", len(newIPs))
 }

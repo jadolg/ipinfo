@@ -10,29 +10,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oschwald/geoip2-golang"
 )
 
 type server struct {
-	mu     sync.RWMutex
-	cityDB *geoip2.Reader
-	asnDB  *geoip2.Reader
+	cityDB atomic.Pointer[geoip2.Reader]
+	asnDB  atomic.Pointer[geoip2.Reader]
 	tor    *torExitSet
 }
 
 func (s *server) getCityDB() *geoip2.Reader {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.cityDB
+	return s.cityDB.Load()
 }
 
 func (s *server) getAsnDB() *geoip2.Reader {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.asnDB
+	return s.asnDB.Load()
 }
 
 func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Reader, error) {
@@ -139,29 +134,18 @@ func (s *server) refreshDBs(accountID, licenseKey, cityPath, asnPath string) {
 		log.Printf("GeoLite2-ASN refresh failed: %v", err)
 	}
 
-	s.mu.Lock()
-	oldCity := s.cityDB
-	oldASN := s.asnDB
 	if cityDB != nil {
-		s.cityDB = cityDB
-	}
-	if asnDB != nil {
-		s.asnDB = asnDB
-	}
-	s.mu.Unlock()
-
-	if oldCity != nil && cityDB != nil {
-		err := oldCity.Close()
-		if err != nil {
-			log.Println("warning: could not close old city DB")
-			return
+		if old := s.cityDB.Swap(cityDB); old != nil {
+			if err := old.Close(); err != nil {
+				log.Println("warning: could not close old city DB")
+			}
 		}
 	}
-	if oldASN != nil && asnDB != nil {
-		err := oldASN.Close()
-		if err != nil {
-			log.Println("warning: could not close old ASN DB")
-			return
+	if asnDB != nil {
+		if old := s.asnDB.Swap(asnDB); old != nil {
+			if err := old.Close(); err != nil {
+				log.Println("warning: could not close old ASN DB")
+			}
 		}
 	}
 	log.Printf("GeoIP databases refreshed")
