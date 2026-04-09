@@ -137,7 +137,7 @@
 <div class="cards" id="cards"></div>
 
 <script>
-var cfg = {
+const cfg = {
   ipv4Url: {{.IPv4URL}},
   ipv6Url: {{.IPv6URL}}
 };
@@ -152,7 +152,7 @@ function set(el, text) {
 }
 
 function makeCard(label, jsonUrl) {
-  var card = document.createElement('div');
+  const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML =
     '<div class="card-header">' +
@@ -175,10 +175,10 @@ function makeCard(label, jsonUrl) {
 
   fetch(jsonUrl)
     .then(function(r) {
-      var status = r.status;
+      const status = r.status;
       return r.text().then(function(text) {
         if (!r.ok) throw new Error('Server returned HTTP ' + status);
-        var d;
+        let d;
         try {
           d = JSON.parse(text);
         } catch(_) {
@@ -199,7 +199,7 @@ function makeCard(label, jsonUrl) {
       set(document.getElementById('cc-'       + label), d.CountryCode);
       set(document.getElementById('location-' + label), d.Location);
 
-      var torEl = document.getElementById('tor-' + label);
+      const torEl = document.getElementById('tor-' + label);
       torEl.innerHTML = d.TorExit
         ? '<span class="badge badge-danger">Yes</span>'
         : '<span class="badge badge-ok">No</span>';
@@ -208,7 +208,7 @@ function makeCard(label, jsonUrl) {
       document.getElementById('rows-'   + label).hidden = false;
     })
     .catch(function(err) {
-      var statusEl = document.getElementById('status-' + label);
+      const statusEl = document.getElementById('status-' + label);
       statusEl.textContent = err.message;
       statusEl.style.color = 'var(--danger)';
     });
