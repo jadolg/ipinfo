@@ -4,15 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/oschwald/geoip2-golang"
 )
 
 type config struct {
@@ -25,6 +22,13 @@ type config struct {
 	IPv6URL    string
 	DBRefresh  time.Duration
 	TorRefresh time.Duration
+	RedisAddr  string
+}
+
+type server struct {
+	geo   *geoDB
+	tor   *torExitSet
+	cache *cache
 }
 
 var jsonBufPool = sync.Pool{
@@ -35,16 +39,7 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	parsed := net.ParseIP(ip)
 
-	info := IPInfo{IPAddress: ip}
-	if parsed != nil {
-		s.enrichFromDBs(&info, parsed)
-	}
-	if parsed != nil && r.URL.Query().Has("hostname") {
-		info.Hostname = reverseLookup(ip)
-	}
-	if s.tor != nil {
-		info.TorExit = s.tor.contains(ip)
-	}
+	info := s.lookupIP(ip, parsed)
 
 	buf := jsonBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
@@ -55,8 +50,33 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	jsonBufPool.Put(buf)
 }
 
+func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
+	if s.cache != nil {
+		if info, ok := s.cache.get(ip); ok {
+			return info
+		}
+	}
+
+	info := IPInfo{IPAddress: ip}
+	if parsed != nil {
+		s.enrichFromDBs(&info, parsed)
+		info.Hostname = reverseLookup(ip)
+	}
+	if s.tor != nil {
+		info.TorExit = s.tor.contains(ip)
+	}
+
+	if s.cache != nil {
+		s.cache.set(ip, info)
+	}
+	return info
+}
+
 func (s *server) enrichFromDBs(info *IPInfo, parsed net.IP) {
-	if cityDB := s.getCityDB(); cityDB != nil {
+	if s.geo == nil {
+		return
+	}
+	if cityDB := s.geo.cityReader(); cityDB != nil {
 		if rec, err := cityDB.City(parsed); err == nil {
 			info.City = rec.City.Names["en"]
 			info.Country = rec.Country.Names["en"]
@@ -68,7 +88,7 @@ func (s *server) enrichFromDBs(info *IPInfo, parsed net.IP) {
 			info.Location = buildLocation(info.City, subdivision, info.Country)
 		}
 	}
-	if asnDB := s.getAsnDB(); asnDB != nil {
+	if asnDB := s.geo.asnReader(); asnDB != nil {
 		if rec, err := asnDB.ASN(parsed); err == nil {
 			info.ISP = rec.AutonomousSystemOrganization
 		}
@@ -133,41 +153,6 @@ func normalizeJSONURL(raw string) string {
 	return u.String()
 }
 
-func (s *server) initDBs(cfg config) {
-	if cfg.AccountID != "" && cfg.LicenseKey != "" {
-		if dbsNeedRefresh(cfg.CityDBPath, cfg.ASNDBPath, cfg.DBRefresh) {
-			log.Printf("downloading GeoIP databases...")
-			s.refreshDBs(cfg.AccountID, cfg.LicenseKey, cfg.CityDBPath, cfg.ASNDBPath)
-		} else {
-			log.Printf("GeoIP databases are fresh, skipping download")
-			s.openDBs(cfg.CityDBPath, cfg.ASNDBPath)
-		}
-		go func() {
-			ticker := time.NewTicker(cfg.DBRefresh)
-			defer ticker.Stop()
-			for range ticker.C {
-				log.Printf("refreshing GeoIP databases...")
-				s.refreshDBs(cfg.AccountID, cfg.LicenseKey, cfg.CityDBPath, cfg.ASNDBPath)
-			}
-		}()
-	} else {
-		s.openDBs(cfg.CityDBPath, cfg.ASNDBPath)
-	}
-}
-
-func (s *server) openDBs(cityDBPath, asnDBPath string) {
-	if cityDB, err := geoip2.Open(cityDBPath); err != nil {
-		log.Printf("warning: could not open city DB %q: %v", cityDBPath, err)
-	} else {
-		s.storeCityDB(cityDB)
-	}
-	if asnDB, err := geoip2.Open(asnDBPath); err != nil {
-		log.Printf("warning: could not open ASN DB %q: %v", asnDBPath, err)
-	} else {
-		s.storeAsnDB(asnDB)
-	}
-}
-
 func (s *server) initTor(torRefresh time.Duration) {
 	tor := newTorExitSet()
 	s.tor = tor
@@ -195,9 +180,13 @@ func listenDualStack(port string) (net.Listener, net.Listener, error) {
 }
 
 func run(cfg config) error {
-	srv := &server{}
-	srv.initDBs(cfg)
+	srv := &server{
+		geo: newGeoDB(cfg),
+	}
 	srv.initTor(cfg.TorRefresh)
+	if cfg.RedisAddr != "" {
+		srv.cache = newCache(cfg.RedisAddr)
+	}
 
 	indexPage := renderIndex(indexConfig{
 		IPv4URL: normalizeJSONURL(cfg.IPv4URL),

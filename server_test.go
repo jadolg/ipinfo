@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -187,6 +188,36 @@ func TestRootShowsBothProtocols(t *testing.T) {
 	}
 	if !strings.Contains(body, "http://[::1]:9090/json") {
 		t.Error("HTML body missing IPv6 URL")
+	}
+}
+
+func TestServerEnrichesFromGeoDB(t *testing.T) {
+	g := openTestGeoDB(t)
+
+	srv := &server{geo: g, tor: newTorExitSet()}
+
+	info := IPInfo{IPAddress: "8.8.8.8"}
+	srv.enrichFromDBs(&info, net.ParseIP("8.8.8.8"))
+
+	if info.Country == "" {
+		t.Error("Country should not be empty for 8.8.8.8")
+	}
+	if info.CountryCode == "" {
+		t.Error("CountryCode should not be empty for 8.8.8.8")
+	}
+	if info.ISP == "" {
+		t.Error("ISP should not be empty for 8.8.8.8")
+	}
+}
+
+func TestServerWithNilGeoSkipsEnrichment(t *testing.T) {
+	srv := &server{tor: newTorExitSet()}
+
+	info := IPInfo{IPAddress: "8.8.8.8"}
+	srv.enrichFromDBs(&info, net.ParseIP("8.8.8.8"))
+
+	if info.Country != "" || info.ISP != "" {
+		t.Error("enrichFromDBs with nil geo should not populate geo fields")
 	}
 }
 
