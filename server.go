@@ -186,6 +186,7 @@ func run(cfg config) error {
 	srv.initTor(cfg.TorRefresh)
 	if cfg.RedisAddr != "" {
 		srv.cache = newCache(cfg.RedisAddr)
+		defer srv.cache.Close()
 	}
 
 	indexPage := renderIndex(indexConfig{
