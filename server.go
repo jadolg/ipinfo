@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -85,7 +86,29 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// normalizeJSONURL ensures raw has an https:// scheme and a /json path when
+// neither is explicitly provided, so bare hostnames like "ipv4.example.com"
+// work as well as full URLs like "https://ipv4.example.com/json".
+func normalizeJSONURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" {
+		u, err = url.Parse("https://" + raw)
+		if err != nil {
+			return raw
+		}
+	}
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/json"
+	}
+	return u.String()
+}
+
 func run(_ context.Context, addr, cityDBPath, asnDBPath, accountID, licenseKey, ipv4URL, ipv6URL string, dbRefresh, torRefresh time.Duration) error {
+	ipv4URL = normalizeJSONURL(ipv4URL)
+	ipv6URL = normalizeJSONURL(ipv6URL)
 	srv := &server{}
 
 	if accountID != "" && licenseKey != "" {
