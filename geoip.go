@@ -171,7 +171,9 @@ func (s *server) refreshDBs(accountID, licenseKey, cityPath, asnPath string) {
 	if asnDB != nil {
 		s.storeAsnDB(asnDB)
 	}
-	log.Printf("GeoIP databases refreshed")
+	if cityDB != nil || asnDB != nil {
+		log.Printf("GeoIP databases refreshed")
+	}
 }
 
 func dbsNeedRefresh(cityPath, asnPath string, interval time.Duration) bool {
