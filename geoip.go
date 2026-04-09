@@ -30,12 +30,45 @@ func (s *server) getAsnDB() *geoip2.Reader {
 	return s.asnDB.Load()
 }
 
+func (s *server) storeCityDB(db *geoip2.Reader) {
+	if old := s.cityDB.Swap(db); old != nil {
+		if err := old.Close(); err != nil {
+			log.Printf("warning: could not close old city DB: %v", err)
+		}
+	}
+}
+
+func (s *server) storeAsnDB(db *geoip2.Reader) {
+	if old := s.asnDB.Swap(db); old != nil {
+		if err := old.Close(); err != nil {
+			log.Printf("warning: could not close old ASN DB: %v", err)
+		}
+	}
+}
+
 func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Reader, error) {
+	body, err := fetchDB(editionID, accountID, licenseKey)
+	if err != nil {
+		return nil, err
+	}
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			log.Printf("warning: could not close DB: %v", err)
+		}
+	}(body)
+
+	if err := extractAndSaveDB(editionID, body, destPath); err != nil {
+		return nil, err
+	}
+	return geoip2.Open(destPath)
+}
+
+func fetchDB(editionID, accountID, licenseKey string) (io.ReadCloser, error) {
 	url := fmt.Sprintf(
 		"https://download.maxmind.com/geoip/databases/%s/download?suffix=tar.gz",
 		editionID,
 	)
-
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", editionID, err)
@@ -46,52 +79,37 @@ func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Read
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", editionID, err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			log.Printf("warning: could not close response body %q: %v", editionID, err)
-		}
-	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("download %s: HTTP %d", editionID, resp.StatusCode)
 	}
+	return resp.Body, nil
+}
 
-	gz, err := gzip.NewReader(resp.Body)
+func extractAndSaveDB(editionID string, r io.Reader, destPath string) error {
+	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("gzip %s: %w", editionID, err)
+		return fmt.Errorf("gzip %s: %w", editionID, err)
 	}
 	defer func(gz *gzip.Reader) {
 		err := gz.Close()
 		if err != nil {
-			log.Printf("warning: could not close gzip reader %q: %v", editionID, err)
+			log.Printf("warning: could not close DB: %v", err)
 		}
 	}(gz)
 
-	// Write the extracted .mmdb to a temp file in the same directory, then
-	// rename atomically so in-flight requests always see a complete file.
-	dir := filepath.Dir(destPath)
-	tmp, err := os.CreateTemp(dir, ".mmdb-download-*")
+	mmdb, err := extractMMDB(editionID, gz)
 	if err != nil {
-		return nil, fmt.Errorf("temp file: %w", err)
+		return err
 	}
-	tmpName := tmp.Name()
-	renamed := false
-	defer func() {
-		if renamed {
-			return
-		}
-		err := tmp.Close()
-		if err != nil {
-			log.Printf("warning: could not close file %q: %v", editionID, err)
-		}
-		err = os.Remove(tmpName)
-		if err != nil {
-			log.Printf("warning: could not remove file %q: %v", editionID, err)
-		}
-	}()
 
+	// Write to a temp file in the same directory, then rename atomically
+	// so in-flight requests always see a complete file.
+	return saveAtomic(destPath, mmdb)
+}
+
+func extractMMDB(editionID string, gz *gzip.Reader) ([]byte, error) {
 	tr := tar.NewReader(gz)
-	found := false
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -103,24 +121,37 @@ func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Read
 		if hdr.Typeflag != tar.TypeReg || !strings.HasSuffix(hdr.Name, ".mmdb") {
 			continue
 		}
-		if _, err := io.Copy(tmp, tr); err != nil {
+		data, err := io.ReadAll(tr)
+		if err != nil {
 			return nil, fmt.Errorf("extract %s: %w", editionID, err)
 		}
-		found = true
-		break
+		return data, nil
 	}
-	if !found {
-		return nil, fmt.Errorf("no .mmdb found in %s archive", editionID)
+	return nil, fmt.Errorf("no .mmdb found in %s archive", editionID)
+}
+
+func saveAtomic(destPath string, data []byte) error {
+	dir := filepath.Dir(destPath)
+	tmp, err := os.CreateTemp(dir, ".mmdb-download-*")
+	if err != nil {
+		return fmt.Errorf("temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return nil, err
+		_ = os.Remove(tmpName)
+		return err
 	}
 	if err := os.Rename(tmpName, destPath); err != nil {
-		return nil, fmt.Errorf("rename %s: %w", editionID, err)
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("rename %s: %w", destPath, err)
 	}
-	renamed = true
-
-	return geoip2.Open(destPath)
+	return nil
 }
 
 func (s *server) refreshDBs(accountID, licenseKey, cityPath, asnPath string) {
@@ -135,18 +166,10 @@ func (s *server) refreshDBs(accountID, licenseKey, cityPath, asnPath string) {
 	}
 
 	if cityDB != nil {
-		if old := s.cityDB.Swap(cityDB); old != nil {
-			if err := old.Close(); err != nil {
-				log.Println("warning: could not close old city DB")
-			}
-		}
+		s.storeCityDB(cityDB)
 	}
 	if asnDB != nil {
-		if old := s.asnDB.Swap(asnDB); old != nil {
-			if err := old.Close(); err != nil {
-				log.Println("warning: could not close old ASN DB")
-			}
-		}
+		s.storeAsnDB(asnDB)
 	}
 	log.Printf("GeoIP databases refreshed")
 }
