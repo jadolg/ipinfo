@@ -1,0 +1,35 @@
+services:
+  init-data:
+    image: alpine
+    command: chown -R 65534:65534 /data
+    volumes:
+      - geoip-data:/data
+
+  ipinfo:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      init-data:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      IPINFO_ADDR: ":8080"
+      IPINFO_ACCOUNT_ID: ${IPINFO_ACCOUNT_ID:-}
+      IPINFO_LICENSE_KEY: ${IPINFO_LICENSE_KEY:-}
+      IPINFO_CITY_DB: /data/GeoLite2-City.mmdb
+      IPINFO_ASN_DB: /data/GeoLite2-ASN.mmdb
+      IPINFO_DB_REFRESH: ${IPINFO_DB_REFRESH:-168h}
+      IPINFO_TOR_REFRESH: ${IPINFO_TOR_REFRESH:-1h}
+      IPINFO_IPV4_URL: ${IPINFO_IPV4_URL:-}
+      IPINFO_IPV6_URL: ${IPINFO_IPV6_URL:-}
+    volumes:
+      - geoip-data:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  geoip-data:

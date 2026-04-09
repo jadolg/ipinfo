@@ -1,0 +1,7 @@
+/.idea
+/.claude
+/.mmdb-download-*
+/GeoLite2-ASN.mmdb
+/GeoLite2-City.mmdb
+/.env
+/ipinfo
