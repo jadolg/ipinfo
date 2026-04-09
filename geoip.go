@@ -85,8 +85,14 @@ func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Read
 		if renamed {
 			return
 		}
-		tmp.Close()
-		os.Remove(tmpName)
+		err := tmp.Close()
+		if err != nil {
+			log.Printf("warning: could not close file %q: %v", editionID, err)
+		}
+		err = os.Remove(tmpName)
+		if err != nil {
+			log.Printf("warning: could not remove file %q: %v", editionID, err)
+		}
 	}()
 
 	tr := tar.NewReader(gz)
