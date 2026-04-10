@@ -30,6 +30,7 @@ func (t *torExitSet) refresh() {
 	resp, err := http.Get("https://check.torproject.org/torbulkexitlist")
 	if err != nil {
 		log.Printf("tor list refresh failed: %v", err)
+		recordError("tor", "fetch")
 		return
 	}
 	defer func(Body io.ReadCloser) {
@@ -49,6 +50,7 @@ func (t *torExitSet) refresh() {
 	}
 	if err := scanner.Err(); err != nil {
 		log.Printf("tor list scan error: %v", err)
+		recordError("tor", "scan")
 		return
 	}
 

@@ -72,11 +72,13 @@ func (g *geoDB) storeASN(db *geoip2.Reader) {
 func (g *geoDB) open(cityDBPath, asnDBPath string) {
 	if db, err := geoip2.Open(cityDBPath); err != nil {
 		log.Printf("warning: could not open city DB %q: %v", cityDBPath, err)
+		recordError("geodb", "open_city")
 	} else {
 		g.storeCity(db)
 	}
 	if db, err := geoip2.Open(asnDBPath); err != nil {
 		log.Printf("warning: could not open ASN DB %q: %v", asnDBPath, err)
+		recordError("geodb", "open_asn")
 	} else {
 		g.storeASN(db)
 	}
@@ -86,10 +88,12 @@ func (g *geoDB) refresh(accountID, licenseKey, cityPath, asnPath string) {
 	cityDB, err := downloadDB("GeoLite2-City", accountID, licenseKey, cityPath)
 	if err != nil {
 		log.Printf("GeoLite2-City refresh failed: %v", err)
+		recordError("geodb", "refresh_city")
 	}
 	asnDB, err := downloadDB("GeoLite2-ASN", accountID, licenseKey, asnPath)
 	if err != nil {
 		log.Printf("GeoLite2-ASN refresh failed: %v", err)
+		recordError("geodb", "refresh_asn")
 	}
 
 	if cityDB != nil {

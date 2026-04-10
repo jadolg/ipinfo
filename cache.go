@@ -52,11 +52,13 @@ func (c *cache) get(ip string) (IPInfo, bool) {
 	}
 	if err != nil {
 		log.Printf("cache get %s: %v", ip, err)
+		recordError("cache", "get")
 		return IPInfo{}, false
 	}
 	var info IPInfo
 	if err := json.Unmarshal(val, &info); err != nil {
 		log.Printf("cache decode %s: %v", ip, err)
+		recordError("cache", "decode")
 		return IPInfo{}, false
 	}
 	return info, true
@@ -69,9 +71,11 @@ func (c *cache) set(ip string, info IPInfo) {
 	data, err := json.Marshal(info)
 	if err != nil {
 		log.Printf("cache encode %s: %v", ip, err)
+		recordError("cache", "encode")
 		return
 	}
 	if err := c.rdb.Set(ctx, ip, data, c.ttl).Err(); err != nil {
 		log.Printf("cache set %s: %v", ip, err)
+		recordError("cache", "set")
 	}
 }

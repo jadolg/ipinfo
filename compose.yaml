@@ -23,6 +23,7 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
+      - "9091:9091"
     environment:
       IPINFO_ADDR: ":8080"
       IPINFO_ACCOUNT_ID: ${IPINFO_ACCOUNT_ID:-}

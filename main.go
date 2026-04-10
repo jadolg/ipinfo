@@ -88,6 +88,13 @@ func main() {
 				Sources:     cli.EnvVars("IPINFO_CACHE_TTL"),
 				Destination: &cfg.CacheTTL,
 			},
+			&cli.StringFlag{
+				Name:        "metrics-addr",
+				Value:       ":9091",
+				Usage:       "address to expose Prometheus metrics on (empty to disable)",
+				Sources:     cli.EnvVars("IPINFO_METRICS_ADDR"),
+				Destination: &cfg.MetricsAddr,
+			},
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return run(cfg)

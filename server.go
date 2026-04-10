@@ -13,17 +13,18 @@ import (
 )
 
 type config struct {
-	Addr       string
-	CityDBPath string
-	ASNDBPath  string
-	AccountID  string
-	LicenseKey string
-	IPv4URL    string
-	IPv6URL    string
-	DBRefresh  time.Duration
-	TorRefresh time.Duration
-	RedisAddr  string
-	CacheTTL   time.Duration
+	Addr        string
+	CityDBPath  string
+	ASNDBPath   string
+	AccountID   string
+	LicenseKey  string
+	IPv4URL     string
+	IPv6URL     string
+	DBRefresh   time.Duration
+	TorRefresh  time.Duration
+	RedisAddr   string
+	CacheTTL    time.Duration
+	MetricsAddr string
 }
 
 type server struct {
@@ -39,6 +40,14 @@ var jsonBufPool = sync.Pool{
 func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	parsed := net.ParseIP(ip)
+
+	if parsed != nil {
+		if parsed.To4() != nil {
+			ipVersionHits.WithLabelValues("4").Inc()
+		} else {
+			ipVersionHits.WithLabelValues("6").Inc()
+		}
+	}
 
 	info := s.lookupIP(ip, parsed)
 
@@ -195,15 +204,15 @@ func run(cfg config) error {
 		IPv6URL: normalizeJSONURL(cfg.IPv6URL),
 	})
 	mux := http.NewServeMux()
-	mux.HandleFunc("/json", srv.handleJSON)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/json", withMetrics("/json", srv.handleJSON))
+	mux.HandleFunc("/", withMetrics("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(indexPage)
-	})
+	}))
 
 	_, port, err := net.SplitHostPort(cfg.Addr)
 	if err != nil {
@@ -212,6 +221,9 @@ func run(cfg config) error {
 	l4, l6, err := listenDualStack(port)
 	if err != nil {
 		return err
+	}
+	if cfg.MetricsAddr != "" {
+		startMetricsServer(cfg.MetricsAddr)
 	}
 	fmt.Printf("Listening on 0.0.0.0:%s and [::]:%s\n", port, port)
 
