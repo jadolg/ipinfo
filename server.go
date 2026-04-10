@@ -65,7 +65,9 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 	if s.cache != nil {
+		cacheLookups.Inc()
 		if info, ok := s.cache.get(ip); ok {
+			cacheHits.Inc()
 			return info
 		}
 	}

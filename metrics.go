@@ -24,6 +24,16 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "path"})
 
+	cacheLookups = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "ipinfo_cache_lookups_total",
+		Help: "Total cache lookups attempted.",
+	})
+
+	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "ipinfo_cache_hits_total",
+		Help: "Total cache lookups that returned a hit.",
+	})
+
 	ipVersionHits = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "ipinfo_ip_version_hits_total",
 		Help: "Total lookups by IP version (4 or 6).",
