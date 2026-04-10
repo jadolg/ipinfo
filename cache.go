@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -29,16 +30,16 @@ func newCache(addr string, ttl time.Duration) *cache {
 	defer cancel()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Printf("warning: redis unavailable at %s: %v — will retry on use", addr, err)
+		log.WithError(err).WithField("addr", addr).Warn("redis unavailable, will retry on use")
 	} else {
-		log.Printf("redis cache connected: %s", addr)
+		log.WithField("addr", addr).Info("redis cache connected")
 	}
 	return &cache{rdb: rdb, ttl: ttl}
 }
 
 func (c *cache) Close() {
 	if err := c.rdb.Close(); err != nil {
-		log.Printf("warning: could not close redis client: %v", err)
+		log.WithError(err).Warn("could not close redis client")
 	}
 }
 
@@ -51,13 +52,13 @@ func (c *cache) get(ip string) (IPInfo, bool) {
 		return IPInfo{}, false
 	}
 	if err != nil {
-		log.Printf("cache get %s: %v", ip, err)
+		log.WithError(err).WithField("ip", ip).Error("cache get failed")
 		recordError("cache", "get")
 		return IPInfo{}, false
 	}
 	var info IPInfo
 	if err := json.Unmarshal(val, &info); err != nil {
-		log.Printf("cache decode %s: %v", ip, err)
+		log.WithError(err).WithField("ip", ip).Error("cache decode failed")
 		recordError("cache", "decode")
 		return IPInfo{}, false
 	}
@@ -70,12 +71,12 @@ func (c *cache) set(ip string, info IPInfo) {
 
 	data, err := json.Marshal(info)
 	if err != nil {
-		log.Printf("cache encode %s: %v", ip, err)
+		log.WithError(err).WithField("ip", ip).Error("cache encode failed")
 		recordError("cache", "encode")
 		return
 	}
 	if err := c.rdb.Set(ctx, ip, data, c.ttl).Err(); err != nil {
-		log.Printf("cache set %s: %v", ip, err)
+		log.WithError(err).WithField("ip", ip).Error("cache set failed")
 		recordError("cache", "set")
 	}
 }

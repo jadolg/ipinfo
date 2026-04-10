@@ -3,10 +3,11 @@ package main
 import (
 	"bufio"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync/atomic"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type torExitSet struct {
@@ -29,14 +30,13 @@ func (t *torExitSet) contains(ip string) bool {
 func (t *torExitSet) refresh() {
 	resp, err := http.Get("https://check.torproject.org/torbulkexitlist")
 	if err != nil {
-		log.Printf("tor list refresh failed: %v", err)
+		log.WithError(err).Error("tor list fetch failed")
 		recordError("tor", "fetch")
 		return
 	}
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			log.Printf("tor list refresh failed: %v", err)
+		if err := Body.Close(); err != nil {
+			log.WithError(err).Warn("could not close tor response body")
 		}
 	}(resp.Body)
 
@@ -49,11 +49,11 @@ func (t *torExitSet) refresh() {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("tor list scan error: %v", err)
+		log.WithError(err).Error("tor list scan error")
 		recordError("tor", "scan")
 		return
 	}
 
 	t.ips.Store(&newIPs)
-	log.Printf("tor exit list updated: %d nodes", len(newIPs))
+	log.WithField("count", len(newIPs)).Info("tor exit list updated")
 }

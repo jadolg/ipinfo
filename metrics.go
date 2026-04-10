@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -71,8 +72,8 @@ func startMetricsServer(addr string) {
 	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("metrics server error: %v", err)
+			log.WithError(err).Error("metrics server error")
 		}
 	}()
-	log.Printf("metrics listening on %s/metrics", addr)
+	log.WithField("addr", addr+"/metrics").Info("metrics listening")
 }

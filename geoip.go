@@ -5,13 +5,14 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/oschwald/geoip2-golang"
 )
@@ -25,17 +26,17 @@ func newGeoDB(cfg config) *geoDB {
 	g := &geoDB{}
 	if cfg.AccountID != "" && cfg.LicenseKey != "" {
 		if dbsNeedRefresh(cfg.CityDBPath, cfg.ASNDBPath, cfg.DBRefresh) {
-			log.Printf("downloading GeoIP databases...")
+			log.Info("downloading GeoIP databases")
 			g.refresh(cfg.AccountID, cfg.LicenseKey, cfg.CityDBPath, cfg.ASNDBPath)
 		} else {
-			log.Printf("GeoIP databases are fresh, skipping download")
+			log.Info("GeoIP databases are fresh, skipping download")
 			g.open(cfg.CityDBPath, cfg.ASNDBPath)
 		}
 		go func() {
 			ticker := time.NewTicker(cfg.DBRefresh)
 			defer ticker.Stop()
 			for range ticker.C {
-				log.Printf("refreshing GeoIP databases...")
+				log.Info("refreshing GeoIP databases")
 				g.refresh(cfg.AccountID, cfg.LicenseKey, cfg.CityDBPath, cfg.ASNDBPath)
 			}
 		}()
@@ -56,7 +57,7 @@ func (g *geoDB) asnReader() *geoip2.Reader {
 func (g *geoDB) storeCity(db *geoip2.Reader) {
 	if old := g.cityDB.Swap(db); old != nil {
 		if err := old.Close(); err != nil {
-			log.Printf("warning: could not close old city DB: %v", err)
+			log.WithError(err).Warn("could not close old city DB")
 		}
 	}
 }
@@ -64,20 +65,20 @@ func (g *geoDB) storeCity(db *geoip2.Reader) {
 func (g *geoDB) storeASN(db *geoip2.Reader) {
 	if old := g.asnDB.Swap(db); old != nil {
 		if err := old.Close(); err != nil {
-			log.Printf("warning: could not close old ASN DB: %v", err)
+			log.WithError(err).Warn("could not close old ASN DB")
 		}
 	}
 }
 
 func (g *geoDB) open(cityDBPath, asnDBPath string) {
 	if db, err := geoip2.Open(cityDBPath); err != nil {
-		log.Printf("warning: could not open city DB %q: %v", cityDBPath, err)
+		log.WithError(err).WithField("path", cityDBPath).Warn("could not open city DB")
 		recordError("geodb", "open_city")
 	} else {
 		g.storeCity(db)
 	}
 	if db, err := geoip2.Open(asnDBPath); err != nil {
-		log.Printf("warning: could not open ASN DB %q: %v", asnDBPath, err)
+		log.WithError(err).WithField("path", asnDBPath).Warn("could not open ASN DB")
 		recordError("geodb", "open_asn")
 	} else {
 		g.storeASN(db)
@@ -87,12 +88,12 @@ func (g *geoDB) open(cityDBPath, asnDBPath string) {
 func (g *geoDB) refresh(accountID, licenseKey, cityPath, asnPath string) {
 	cityDB, err := downloadDB("GeoLite2-City", accountID, licenseKey, cityPath)
 	if err != nil {
-		log.Printf("GeoLite2-City refresh failed: %v", err)
+		log.WithError(err).WithField("edition", "GeoLite2-City").Error("DB refresh failed")
 		recordError("geodb", "refresh_city")
 	}
 	asnDB, err := downloadDB("GeoLite2-ASN", accountID, licenseKey, asnPath)
 	if err != nil {
-		log.Printf("GeoLite2-ASN refresh failed: %v", err)
+		log.WithError(err).WithField("edition", "GeoLite2-ASN").Error("DB refresh failed")
 		recordError("geodb", "refresh_asn")
 	}
 
@@ -103,7 +104,7 @@ func (g *geoDB) refresh(accountID, licenseKey, cityPath, asnPath string) {
 		g.storeASN(asnDB)
 	}
 	if cityDB != nil || asnDB != nil {
-		log.Printf("GeoIP databases refreshed")
+		log.Info("GeoIP databases refreshed")
 	}
 }
 
@@ -124,7 +125,7 @@ func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Read
 	}
 	defer func(body io.ReadCloser) {
 		if err := body.Close(); err != nil {
-			log.Printf("warning: could not close DB: %v", err)
+			log.WithError(err).WithField("edition", editionID).Warn("could not close DB response body")
 		}
 	}(body)
 
@@ -163,7 +164,7 @@ func extractAndSaveDB(editionID string, r io.Reader, destPath string) error {
 	}
 	defer func(gz *gzip.Reader) {
 		if err := gz.Close(); err != nil {
-			log.Printf("warning: could not close DB: %v", err)
+			log.WithError(err).WithField("edition", editionID).Warn("could not close gzip reader")
 		}
 	}(gz)
 

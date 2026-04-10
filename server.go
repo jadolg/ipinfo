@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type config struct {
@@ -25,6 +27,7 @@ type config struct {
 	RedisAddr   string
 	CacheTTL    time.Duration
 	MetricsAddr string
+	LogLevel    string
 }
 
 type server struct {
@@ -225,7 +228,7 @@ func run(cfg config) error {
 	if cfg.MetricsAddr != "" {
 		startMetricsServer(cfg.MetricsAddr)
 	}
-	fmt.Printf("Listening on 0.0.0.0:%s and [::]:%s\n", port, port)
+	log.WithField("port", port).Info("listening")
 
 	httpSrv := &http.Server{
 		Handler:      mux,

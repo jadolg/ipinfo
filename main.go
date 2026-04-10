@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 )
 
@@ -95,12 +95,29 @@ func main() {
 				Sources:     cli.EnvVars("IPINFO_METRICS_ADDR"),
 				Destination: &cfg.MetricsAddr,
 			},
+			&cli.StringFlag{
+				Name:        "log-level",
+				Value:       "info",
+				Usage:       "log level (trace, debug, info, warn, error)",
+				Sources:     cli.EnvVars("IPINFO_LOG_LEVEL"),
+				Destination: &cfg.LogLevel,
+			},
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
+			level, err := log.ParseLevel(cfg.LogLevel)
+			if err != nil {
+				log.WithField("level", cfg.LogLevel).Warn("unknown log level, defaulting to info")
+				level = log.InfoLevel
+			}
+			log.SetLevel(level)
+			log.SetFormatter(&log.TextFormatter{
+				DisableColors: true,
+				FullTimestamp: true,
+			})
 			return run(cfg)
 		},
 	}
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		log.WithError(err).Fatal("startup failed")
 	}
 }
