@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -12,6 +13,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	fastDNSTimeout    = 200 * time.Millisecond
+	relaxedDNSTimeout = 5 * time.Second
 )
 
 type config struct {
@@ -75,7 +81,9 @@ func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 	info := IPInfo{IPAddress: ip}
 	if parsed != nil {
 		s.enrichFromDBs(&info, parsed)
-		info.Hostname = reverseLookup(ip)
+		fastCtx, cancel := context.WithTimeout(context.Background(), fastDNSTimeout)
+		info.Hostname = reverseLookup(fastCtx, ip)
+		cancel()
 	}
 	if s.tor != nil {
 		info.TorExit = s.tor.contains(ip)
@@ -83,6 +91,19 @@ func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 
 	if s.cache != nil {
 		s.cache.set(ip, info)
+		if parsed != nil && info.Hostname == "" {
+			// Fast lookup missed; update the cache entry in the background with
+			// a more relaxed timeout so future requests get the hostname.
+			snapshot := info
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), relaxedDNSTimeout)
+				defer cancel()
+				snapshot.Hostname = reverseLookup(ctx, ip)
+				if snapshot.Hostname != "" {
+					s.cache.set(ip, snapshot)
+				}
+			}()
+		}
 	}
 	return info
 }
@@ -111,17 +132,21 @@ func (s *server) enrichFromDBs(info *IPInfo, parsed net.IP) {
 }
 
 func buildLocation(city, subdivision, country string) string {
-	var parts []string
-	for _, s := range []string{city, subdivision, country} {
-		if s != "" {
-			parts = append(parts, s)
+	var b strings.Builder
+	for _, s := range [3]string{city, subdivision, country} {
+		if s == "" {
+			continue
 		}
+		if b.Len() > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(s)
 	}
-	return strings.Join(parts, ", ")
+	return b.String()
 }
 
-func reverseLookup(ip string) string {
-	names, err := net.LookupAddr(ip)
+func reverseLookup(ctx context.Context, ip string) string {
+	names, err := net.DefaultResolver.LookupAddr(ctx, ip)
 	if err != nil || len(names) == 0 {
 		return ""
 	}
@@ -136,8 +161,8 @@ func clientIP(r *http.Request) string {
 	}
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		// For a single-proxy deployment the first entry is the client.
-		parts := strings.Split(xff, ",")
-		if ip := net.ParseIP(strings.TrimSpace(parts[0])); ip != nil {
+		first, _, _ := strings.Cut(xff, ",")
+		if ip := net.ParseIP(strings.TrimSpace(first)); ip != nil {
 			return ip.String()
 		}
 	}
