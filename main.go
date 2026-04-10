@@ -81,6 +81,13 @@ func main() {
 				Sources:     cli.EnvVars("IPINFO_REDIS_ADDR"),
 				Destination: &cfg.RedisAddr,
 			},
+			&cli.DurationFlag{
+				Name:        "cache-ttl",
+				Value:       6 * time.Hour,
+				Usage:       "how long to cache IP info results in Redis",
+				Sources:     cli.EnvVars("IPINFO_CACHE_TTL"),
+				Destination: &cfg.CacheTTL,
+			},
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return run(cfg)

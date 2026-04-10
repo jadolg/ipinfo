@@ -23,6 +23,7 @@ type config struct {
 	DBRefresh  time.Duration
 	TorRefresh time.Duration
 	RedisAddr  string
+	CacheTTL   time.Duration
 }
 
 type server struct {
@@ -185,7 +186,7 @@ func run(cfg config) error {
 	}
 	srv.initTor(cfg.TorRefresh)
 	if cfg.RedisAddr != "" {
-		srv.cache = newCache(cfg.RedisAddr)
+		srv.cache = newCache(cfg.RedisAddr, cfg.CacheTTL)
 		defer srv.cache.Close()
 	}
 

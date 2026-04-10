@@ -10,16 +10,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	cacheTTL     = 1 * time.Hour
-	cacheTimeout = 200 * time.Millisecond
-)
+const cacheTimeout = 200 * time.Millisecond
 
 type cache struct {
 	rdb *redis.Client
+	ttl time.Duration
 }
 
-func newCache(addr string) *cache {
+func newCache(addr string, ttl time.Duration) *cache {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		DialTimeout:  cacheTimeout,
@@ -35,7 +33,7 @@ func newCache(addr string) *cache {
 	} else {
 		log.Printf("redis cache connected: %s", addr)
 	}
-	return &cache{rdb: rdb}
+	return &cache{rdb: rdb, ttl: ttl}
 }
 
 func (c *cache) Close() {
@@ -73,7 +71,7 @@ func (c *cache) set(ip string, info IPInfo) {
 		log.Printf("cache encode %s: %v", ip, err)
 		return
 	}
-	if err := c.rdb.Set(ctx, ip, data, cacheTTL).Err(); err != nil {
+	if err := c.rdb.Set(ctx, ip, data, c.ttl).Err(); err != nil {
 		log.Printf("cache set %s: %v", ip, err)
 	}
 }
