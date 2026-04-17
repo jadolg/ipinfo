@@ -161,7 +161,6 @@ function makeCard(label, jsonUrl) {
     '</div>' +
     '<div class="status" id="status-' + label + '">Loading&hellip;</div>' +
     '<div class="rows" id="rows-' + label + '" hidden>' +
-      '<div class="row"><span class="label">Hostname</span><span class="value" id="hostname-'   + label + '"></span></div>' +
       '<div class="row"><span class="label">ISP</span><span class="value" id="isp-'             + label + '"></span></div>' +
       '<div class="row"><span class="label">City</span><span class="value" id="city-'           + label + '"></span></div>' +
       '<div class="row"><span class="label">Country</span><span class="value" id="country-'     + label + '"></span></div>' +
@@ -192,7 +191,6 @@ function makeCard(label, jsonUrl) {
     })
     .then(function(d) {
       document.getElementById('ip-' + label).textContent = d.IPAddress || 'unknown';
-      set(document.getElementById('hostname-' + label), d.Hostname);
       set(document.getElementById('isp-'      + label), d.ISP);
       set(document.getElementById('city-'     + label), d.City);
       set(document.getElementById('country-'  + label), d.Country);

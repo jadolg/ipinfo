@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -13,11 +12,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	fastDNSTimeout    = 200 * time.Millisecond
-	relaxedDNSTimeout = 5 * time.Second
 )
 
 type config struct {
@@ -86,9 +80,6 @@ func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 	info := IPInfo{IPAddress: ip}
 	if parsed != nil {
 		s.enrichFromDBs(&info, parsed)
-		fastCtx, cancel := context.WithTimeout(context.Background(), fastDNSTimeout)
-		info.Hostname = reverseLookup(fastCtx, ip)
-		cancel()
 	}
 	if s.tor != nil {
 		info.TorExit = s.tor.contains(ip)
@@ -96,19 +87,6 @@ func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 
 	if s.cache != nil {
 		s.cache.set(ip, info)
-		if parsed != nil && info.Hostname == "" {
-			// Fast lookup missed; update the cache entry in the background with
-			// a more relaxed timeout so future requests get the hostname.
-			snapshot := info
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), relaxedDNSTimeout)
-				defer cancel()
-				snapshot.Hostname = reverseLookup(ctx, ip)
-				if snapshot.Hostname != "" {
-					s.cache.set(ip, snapshot)
-				}
-			}()
-		}
 	}
 	return info
 }
@@ -148,14 +126,6 @@ func buildLocation(city, subdivision, country string) string {
 		b.WriteString(s)
 	}
 	return b.String()
-}
-
-func reverseLookup(ctx context.Context, ip string) string {
-	names, err := net.DefaultResolver.LookupAddr(ctx, ip)
-	if err != nil || len(names) == 0 {
-		return ""
-	}
-	return strings.TrimSuffix(names[0], ".")
 }
 
 func clientIP(r *http.Request) string {

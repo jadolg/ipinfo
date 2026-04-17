@@ -50,6 +50,20 @@ func recordError(component, operation string) {
 	errorsTotal.WithLabelValues(component, operation).Inc()
 }
 
+// normalizeMethod caps the cardinality of the method label so that clients
+// sending arbitrary RFC-7230 tokens (CHICKEN, FOOBAR, …) cannot grow Prometheus
+// state without bound.
+func normalizeMethod(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch,
+		http.MethodDelete, http.MethodHead, http.MethodOptions,
+		http.MethodConnect, http.MethodTrace:
+		return m
+	default:
+		return "OTHER"
+	}
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -67,8 +81,9 @@ func withMetrics(pattern string, h http.HandlerFunc) http.HandlerFunc {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		h(rec, r)
-		httpRequestsTotal.WithLabelValues(r.Method, pattern, strconv.Itoa(rec.status)).Inc()
-		httpRequestDuration.WithLabelValues(r.Method, pattern).Observe(time.Since(start).Seconds())
+		method := normalizeMethod(r.Method)
+		httpRequestsTotal.WithLabelValues(method, pattern, strconv.Itoa(rec.status)).Inc()
+		httpRequestDuration.WithLabelValues(method, pattern).Observe(time.Since(start).Seconds())
 	}
 }
 

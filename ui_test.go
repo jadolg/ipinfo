@@ -51,19 +51,19 @@ func TestUIDisplaysIPOnSuccess(t *testing.T) {
 	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
-			"IPAddress":"203.0.113.1","Hostname":"host.example.com",
+			"IPAddress":"203.0.113.1",
 			"ISP":"Example ISP","TorExit":false,
 			"City":"Berlin","Country":"Germany","CountryCode":"DE",
 			"Location":"Berlin, BE, Germany"
 		}`))
 	})
 
-	var ipText, hostnameText string
+	var ipText, ispText string
 	err := chromedp.Run(browserCtx(t),
 		chromedp.Navigate(url),
 		chromedp.WaitVisible(`#rows-IP`),
 		chromedp.Text(`#ip-IP`, &ipText),
-		chromedp.Text(`#hostname-IP`, &hostnameText),
+		chromedp.Text(`#isp-IP`, &ispText),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -71,8 +71,8 @@ func TestUIDisplaysIPOnSuccess(t *testing.T) {
 	if ipText != "203.0.113.1" {
 		t.Errorf("IP = %q, want 203.0.113.1", ipText)
 	}
-	if hostnameText != "host.example.com" {
-		t.Errorf("Hostname = %q, want host.example.com", hostnameText)
+	if ispText != "Example ISP" {
+		t.Errorf("ISP = %q, want Example ISP", ispText)
 	}
 }
 

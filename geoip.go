@@ -17,6 +17,17 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
+// geoDBCloseGrace gives in-flight lookups time to finish before the old
+// mmap'd reader is unmapped. Lookups take microseconds; 1 minute is ample.
+const geoDBCloseGrace = 1 * time.Minute
+
+// geoDownloadTimeout bounds each MaxMind download. The City DB is ~70 MB,
+// so 5 minutes covers slow links while preventing a hung TLS connection
+// from wedging the refresher forever.
+const geoDownloadTimeout = 5 * time.Minute
+
+var geoHTTPClient = &http.Client{Timeout: geoDownloadTimeout}
+
 type geoDB struct {
 	cityDB atomic.Pointer[geoip2.Reader]
 	asnDB  atomic.Pointer[geoip2.Reader]
@@ -54,19 +65,25 @@ func (g *geoDB) asnReader() *geoip2.Reader {
 	return g.asnDB.Load()
 }
 
+// closeReaderAfterGrace unmaps the old reader after a grace period so that
+// concurrent lookups holding the old pointer don't segfault on munmap'd memory.
+func closeReaderAfterGrace(kind string, old *geoip2.Reader) {
+	time.AfterFunc(geoDBCloseGrace, func() {
+		if err := old.Close(); err != nil {
+			log.WithError(err).Warnf("could not close old %s DB", kind)
+		}
+	})
+}
+
 func (g *geoDB) storeCity(db *geoip2.Reader) {
 	if old := g.cityDB.Swap(db); old != nil {
-		if err := old.Close(); err != nil {
-			log.WithError(err).Warn("could not close old city DB")
-		}
+		closeReaderAfterGrace("city", old)
 	}
 }
 
 func (g *geoDB) storeASN(db *geoip2.Reader) {
 	if old := g.asnDB.Swap(db); old != nil {
-		if err := old.Close(); err != nil {
-			log.WithError(err).Warn("could not close old ASN DB")
-		}
+		closeReaderAfterGrace("ASN", old)
 	}
 }
 
@@ -146,7 +163,7 @@ func fetchDB(editionID, accountID, licenseKey string) (io.ReadCloser, error) {
 	}
 	req.SetBasicAuth(accountID, licenseKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := geoHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", editionID, err)
 	}

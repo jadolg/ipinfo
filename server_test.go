@@ -134,7 +134,6 @@ func TestAllFieldsPresent(t *testing.T) {
 	required := []string{
 		"IPAddress",
 		"Location",
-		"Hostname",
 		"ISP",
 		"TorExit",
 		"City",

@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
+
+var torHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type torExitSet struct {
 	ips atomic.Pointer[map[string]struct{}]
@@ -28,7 +31,7 @@ func (t *torExitSet) contains(ip string) bool {
 }
 
 func (t *torExitSet) refresh() {
-	resp, err := http.Get("https://check.torproject.org/torbulkexitlist")
+	resp, err := torHTTPClient.Get("https://check.torproject.org/torbulkexitlist")
 	if err != nil {
 		log.WithError(err).Error("tor list fetch failed")
 		recordError("tor", "fetch")

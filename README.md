@@ -1,6 +1,6 @@
 # ipinfo
 
-Shows your public IP address along with hostname, ISP, location, and whether
+Shows your public IP address along with ISP, location, and whether
 you are connecting through a Tor exit node. Handles IPv4 and IPv6 separately
 so you can see both at once.
 
