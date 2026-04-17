@@ -37,6 +37,7 @@ services:
       IPINFO_IPV4_URL: ${IPINFO_IPV4_URL:-}
       IPINFO_IPV6_URL: ${IPINFO_IPV6_URL:-}
       IPINFO_REDIS_ADDR: redis:6379
+      IPINFO_CACHE_TTL: ${IPINFO_CACHE_TTL:-48h}
     volumes:
       - geoip-data:/data
     read_only: true

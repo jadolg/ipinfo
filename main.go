@@ -83,7 +83,7 @@ func main() {
 			},
 			&cli.DurationFlag{
 				Name:        "cache-ttl",
-				Value:       6 * time.Hour,
+				Value:       48 * time.Hour,
 				Usage:       "how long to cache IP info results in Redis",
 				Sources:     cli.EnvVars("IPINFO_CACHE_TTL"),
 				Destination: &cfg.CacheTTL,
