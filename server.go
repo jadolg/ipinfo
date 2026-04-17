@@ -46,6 +46,11 @@ var jsonBufPool = sync.Pool{
 	New: func() any { return new(bytes.Buffer) },
 }
 
+func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
 func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	parsed := net.ParseIP(ip)
@@ -235,6 +240,7 @@ func run(cfg config) error {
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json", withMetrics("/json", srv.handleJSON))
+	mux.HandleFunc("/health", withMetrics("/health", srv.handleHealth))
 	mux.HandleFunc("/", withMetrics("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)

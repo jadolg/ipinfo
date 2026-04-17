@@ -10,6 +10,7 @@ Live at: https://ip.r4bbit.net
 
 - `GET /` -- HTML page with IP details
 - `GET /json` -- same data as JSON
+- `GET /health` -- liveness probe, returns `{"status":"ok"}`
 
 ## Running with Docker Compose
 
