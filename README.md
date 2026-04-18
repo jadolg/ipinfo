@@ -35,6 +35,10 @@ All options can be set as environment variables or CLI flags.
 | `IPINFO_TOR_REFRESH` | `--tor-refresh` | `1h` | How often to refresh the Tor exit node list |
 | `IPINFO_IPV4_URL` | `--ipv4-url` | | URL of the `/json` endpoint reachable over IPv4 (e.g. `https://ipv4.example.com/json`) |
 | `IPINFO_IPV6_URL` | `--ipv6-url` | | URL of the `/json` endpoint reachable over IPv6 (e.g. `https://ipv6.example.com/json`) |
+| `IPINFO_REDIS_ADDR` | `--redis-addr` | | Redis address for IP info caching (e.g. `redis:6379`) |
+| `IPINFO_CACHE_TTL` | `--cache-ttl` | `48h` | How long to cache IP info results in Redis |
+| `IPINFO_METRICS_ADDR` | `--metrics-addr` | `:9091` | Address to expose Prometheus metrics (empty to disable) |
+| `IPINFO_LOG_LEVEL` | `--log-level` | `info` | Log level (`trace`, `debug`, `info`, `warn`, `error`) |
 
 When both `IPINFO_ACCOUNT_ID` and `IPINFO_LICENSE_KEY` are set, the service
 downloads and periodically refreshes the GeoLite2 databases automatically.
