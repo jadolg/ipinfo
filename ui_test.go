@@ -47,6 +47,13 @@ func waitStatus(not string) chromedp.Action {
 	)
 }
 
+func waitConnectivityError() chromedp.Action {
+	return chromedp.Poll(
+		`document.querySelector('#cards p.status') !== null`,
+		nil,
+	)
+}
+
 func TestUIDisplaysIPOnSuccess(t *testing.T) {
 	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -101,17 +108,17 @@ func TestUIShowsErrorOnHTTPFailure(t *testing.T) {
 		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 	})
 
-	var statusText string
+	var msgText string
 	err := chromedp.Run(browserCtx(t),
 		chromedp.Navigate(url),
-		waitStatus("Loading\u2026"),
-		chromedp.Text(`#status-IP`, &statusText),
+		waitConnectivityError(),
+		chromedp.Text(`#cards p.status`, &msgText),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if statusText != "Server returned HTTP 503" {
-		t.Errorf("status = %q, want \"Server returned HTTP 503\"", statusText)
+	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
+		t.Errorf("connectivity message = %q", msgText)
 	}
 }
 
@@ -121,17 +128,17 @@ func TestUIShowsErrorOnNonJSON(t *testing.T) {
 		_, _ = w.Write([]byte(`<html><body>not json</body></html>`))
 	})
 
-	var statusText string
+	var msgText string
 	err := chromedp.Run(browserCtx(t),
 		chromedp.Navigate(url),
-		waitStatus("Loading\u2026"),
-		chromedp.Text(`#status-IP`, &statusText),
+		waitConnectivityError(),
+		chromedp.Text(`#cards p.status`, &msgText),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if statusText != "Response is not valid JSON" {
-		t.Errorf("status = %q, want \"Response is not valid JSON\"", statusText)
+	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
+		t.Errorf("connectivity message = %q", msgText)
 	}
 }
 
@@ -141,16 +148,58 @@ func TestUIShowsErrorOnWrongShape(t *testing.T) {
 		_, _ = w.Write([]byte(`{"unexpected":"field"}`))
 	})
 
-	var statusText string
+	var msgText string
 	err := chromedp.Run(browserCtx(t),
 		chromedp.Navigate(url),
-		waitStatus("Loading\u2026"),
-		chromedp.Text(`#status-IP`, &statusText),
+		waitConnectivityError(),
+		chromedp.Text(`#cards p.status`, &msgText),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if statusText != "Unexpected response shape" {
-		t.Errorf("status = %q, want \"Unexpected response shape\"", statusText)
+	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
+		t.Errorf("connectivity message = %q", msgText)
+	}
+}
+
+func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/json4", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"IPAddress":"203.0.113.1"}`))
+	})
+	mux.HandleFunc("/json6", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no IPv6", http.StatusServiceUnavailable)
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = indexTmpl.Execute(w, indexConfig{
+			IPv4URL: "http://" + r.Host + "/json4",
+			IPv6URL: "http://" + r.Host + "/json6",
+		})
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	var ipText string
+	var noConnMsg bool
+	err := chromedp.Run(browserCtx(t),
+		chromedp.Navigate(ts.URL),
+		chromedp.WaitVisible(`#rows-IPv4`),
+		chromedp.Text(`#ip-IPv4`, &ipText),
+		chromedp.Evaluate(`document.querySelector('#cards p.status') === null`, &noConnMsg),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ipText != "203.0.113.1" {
+		t.Errorf("IPv4 card IP = %q, want 203.0.113.1", ipText)
+	}
+	if !noConnMsg {
+		t.Error("connectivity error message should not be shown when one card succeeds")
 	}
 }

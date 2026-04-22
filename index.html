@@ -151,7 +151,24 @@ function set(el, text) {
   }
 }
 
+let totalCards = 0;
+let doneCards = 0;
+let successCards = 0;
+
+function onCardDone(ok) {
+  doneCards++;
+  if (ok) successCards++;
+  if (doneCards === totalCards && successCards === 0) {
+    const msg = document.createElement('p');
+    msg.className = 'status';
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Unable to detect your IP address. Please check your network connectivity.';
+    document.getElementById('cards').appendChild(msg);
+  }
+}
+
 function makeCard(label, jsonUrl) {
+  totalCards++;
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML =
@@ -204,11 +221,11 @@ function makeCard(label, jsonUrl) {
 
       document.getElementById('status-' + label).hidden = true;
       document.getElementById('rows-'   + label).hidden = false;
+      onCardDone(true);
     })
-    .catch(function(err) {
-      const statusEl = document.getElementById('status-' + label);
-      statusEl.textContent = err.message;
-      statusEl.style.color = 'var(--danger)';
+    .catch(function() {
+      card.remove();
+      onCardDone(false);
     });
 }
 
