@@ -55,6 +55,7 @@
     justify-content: center;
   }
 
+  /*noinspection CssUnusedSymbol*/
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -106,6 +107,7 @@
   }
 
   .value { word-break: break-all; }
+  /*noinspection CssUnusedSymbol*/
   .value.empty { color: var(--muted); font-style: italic; }
 
   .badge {
@@ -142,19 +144,31 @@
 
   @media (max-width: 700px) {
     .cards { flex-direction: column; align-items: center; }
+    /*noinspection CssUnusedSymbol*/
     .card  { max-width: 100%; width: 100%; }
     .row   { flex-direction: column; gap: 0.2rem; }
     .label { flex: none; }
   }
 </style>
 </head>
-<body>
+<body data-ipv4-url="{{.IPv4URL}}" data-ipv6-url="{{.IPv6URL}}">
 <div class="cards" id="cards"></div>
 
 <script>
+/**
+ * @typedef {Object} IPInfo
+ * @property {string} IPAddress
+ * @property {string} [ISP]
+ * @property {string} [City]
+ * @property {string} [Country]
+ * @property {string} [CountryCode]
+ * @property {string} [Location]
+ * @property {boolean} [TorExit]
+ */
+
 const cfg = {
-  ipv4Url: {{.IPv4URL}},
-  ipv6Url: {{.IPv6URL}}
+  ipv4Url: document.body.dataset.ipv4Url,
+  ipv6Url: document.body.dataset.ipv6Url
 };
 
 function set(el, text) {
@@ -210,7 +224,7 @@ function makeCard(label, jsonUrl) {
         let d;
         try {
           d = JSON.parse(text);
-        } catch(_) {
+        } catch {
           throw new Error('Response is not valid JSON');
         }
         if (typeof d !== 'object' || d === null || !('IPAddress' in d)) {
@@ -219,7 +233,7 @@ function makeCard(label, jsonUrl) {
         return d;
       });
     })
-    .then(function(d) {
+    .then(/** @param {IPInfo} d */ function(d) {
       document.getElementById('ip-' + label).textContent = d.IPAddress || 'unknown';
       set(document.getElementById('isp-'      + label), d.ISP);
       set(document.getElementById('city-'     + label), d.City);
