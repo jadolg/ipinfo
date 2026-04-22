@@ -39,14 +39,6 @@ func browserCtx(t *testing.T) context.Context {
 	return ctx
 }
 
-func waitStatus(not string) chromedp.Action {
-	return chromedp.Poll(
-		`document.getElementById('status-IP') &&
-		 document.getElementById('status-IP').textContent !== '`+not+`'`,
-		nil,
-	)
-}
-
 func waitConnectivityError() chromedp.Action {
 	return chromedp.Poll(
 		`document.querySelector('#cards p.status') !== null`,
