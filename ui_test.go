@@ -10,6 +10,12 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+const (
+	headerContentType  = "Content-Type"
+	mimeJSON           = "application/json"
+	connectivityErrMsg = "Unable to detect your IP address. Please check your network connectivity."
+)
+
 func newUIServer(t *testing.T, jsonHandler http.HandlerFunc) string {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -19,7 +25,7 @@ func newUIServer(t *testing.T, jsonHandler http.HandlerFunc) string {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_ = indexTmpl.Execute(w, indexConfig{})
 	})
 	ts := httptest.NewServer(mux)
@@ -48,7 +54,7 @@ func waitConnectivityError() chromedp.Action {
 
 func TestUIDisplaysIPOnSuccess(t *testing.T) {
 	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(headerContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{
 			"IPAddress":"203.0.113.1",
 			"ISP":"Example ISP","TorExit":false,
@@ -77,7 +83,7 @@ func TestUIDisplaysIPOnSuccess(t *testing.T) {
 
 func TestUIShowsTorBadge(t *testing.T) {
 	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(headerContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"IPAddress":"1.2.3.4","TorExit":true}`))
 	})
 
@@ -95,69 +101,56 @@ func TestUIShowsTorBadge(t *testing.T) {
 	}
 }
 
-func TestUIShowsErrorOnHTTPFailure(t *testing.T) {
-	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
-	})
-
-	var msgText string
-	err := chromedp.Run(browserCtx(t),
-		chromedp.Navigate(url),
-		waitConnectivityError(),
-		chromedp.Text(`#cards p.status`, &msgText),
-	)
-	if err != nil {
-		t.Fatal(err)
+func TestUIShowsConnectivityErrorOnBadResponse(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{
+			name: "http failure",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+			},
+		},
+		{
+			name: "non-json response",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set(headerContentType, "text/html")
+				_, _ = w.Write([]byte(`<html><body>not json</body></html>`))
+			},
+		},
+		{
+			name: "wrong shape",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set(headerContentType, mimeJSON)
+				_, _ = w.Write([]byte(`{"unexpected":"field"}`))
+			},
+		},
 	}
-	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
-		t.Errorf("connectivity message = %q", msgText)
-	}
-}
 
-func TestUIShowsErrorOnNonJSON(t *testing.T) {
-	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte(`<html><body>not json</body></html>`))
-	})
-
-	var msgText string
-	err := chromedp.Run(browserCtx(t),
-		chromedp.Navigate(url),
-		waitConnectivityError(),
-		chromedp.Text(`#cards p.status`, &msgText),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
-		t.Errorf("connectivity message = %q", msgText)
-	}
-}
-
-func TestUIShowsErrorOnWrongShape(t *testing.T) {
-	url := newUIServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"unexpected":"field"}`))
-	})
-
-	var msgText string
-	err := chromedp.Run(browserCtx(t),
-		chromedp.Navigate(url),
-		waitConnectivityError(),
-		chromedp.Text(`#cards p.status`, &msgText),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msgText != "Unable to detect your IP address. Please check your network connectivity." {
-		t.Errorf("connectivity message = %q", msgText)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			url := newUIServer(t, tc.handler)
+			var msgText string
+			err := chromedp.Run(browserCtx(t),
+				chromedp.Navigate(url),
+				waitConnectivityError(),
+				chromedp.Text(`#cards p.status`, &msgText),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if msgText != connectivityErrMsg {
+				t.Errorf("connectivity message = %q", msgText)
+			}
+		})
 	}
 }
 
 func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json4", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(headerContentType, mimeJSON)
 		_, _ = w.Write([]byte(`{"IPAddress":"203.0.113.1"}`))
 	})
 	mux.HandleFunc("/json6", func(w http.ResponseWriter, _ *http.Request) {
@@ -168,7 +161,7 @@ func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_ = indexTmpl.Execute(w, indexConfig{
 			IPv4URL: "http://" + r.Host + "/json4",
 			IPv6URL: "http://" + r.Host + "/json6",
