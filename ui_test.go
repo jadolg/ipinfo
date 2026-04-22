@@ -182,6 +182,7 @@ func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
 	err := chromedp.Run(browserCtx(t),
 		chromedp.Navigate(ts.URL),
 		chromedp.WaitVisible(`#rows-IPv4`),
+		chromedp.WaitNotPresent(`#ip-IPv6`),
 		chromedp.Text(`#ip-IPv4`, &ipText),
 		chromedp.Evaluate(`document.querySelector('#cards p.status') === null`, &noConnMsg),
 	)

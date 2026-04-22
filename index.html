@@ -166,14 +166,12 @@ function set(el, text) {
   }
 }
 
-let totalCards = 0;
-let doneCards = 0;
-let successCards = 0;
+const cardTracker = { total: 0, done: 0, succeeded: 0 };
 
 function onCardDone(ok) {
-  doneCards++;
-  if (ok) successCards++;
-  if (doneCards === totalCards && successCards === 0) {
+  cardTracker.done++;
+  if (ok) cardTracker.succeeded++;
+  if (cardTracker.done === cardTracker.total && cardTracker.succeeded === 0) {
     const msg = document.createElement('p');
     msg.className = 'status';
     msg.style.color = 'var(--danger)';
@@ -183,7 +181,7 @@ function onCardDone(ok) {
 }
 
 function makeCard(label, jsonUrl) {
-  totalCards++;
+  cardTracker.total++;
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML =
@@ -238,7 +236,8 @@ function makeCard(label, jsonUrl) {
       document.getElementById('rows-'   + label).hidden = false;
       onCardDone(true);
     })
-    .catch(function() {
+    .catch(function(err) {
+      console.debug('ipinfo fetch failed:', err);
       card.remove();
       onCardDone(false);
     });
