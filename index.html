@@ -16,6 +16,21 @@
     --ok:      #4caf82;
     --text:    #e2e4ed;
     --muted:   #6b6f82;
+    --row-hover: rgba(255,255,255,.03);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:      #f4f5f7;
+      --surface: #ffffff;
+      --border:  #dde0e8;
+      --accent:  #2d5fd4;
+      --danger:  #c0392b;
+      --ok:      #2e7d57;
+      --text:    #1a1c24;
+      --muted:   #7a7e92;
+      --row-hover: rgba(0,0,0,.03);
+    }
   }
 
   body {
@@ -80,7 +95,7 @@
     padding: 0.55rem 1.5rem;
     transition: background 0.1s;
   }
-  .row:hover { background: rgba(255,255,255,.03); }
+  .row:hover { background: var(--row-hover); }
 
   .label {
     flex: 0 0 140px;
@@ -100,8 +115,8 @@
     font-size: 12px;
     font-weight: 600;
   }
-  .badge-ok     { background: rgba(76,175,130,.15); color: var(--ok); }
-  .badge-danger { background: rgba(224,92,92,.15);  color: var(--danger); }
+  .badge-ok     { background: color-mix(in srgb, var(--ok) 15%, transparent);     color: var(--ok); }
+  .badge-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 
   .card-footer {
     padding: 0.9rem 1.5rem;
