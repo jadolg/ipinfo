@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -33,14 +35,38 @@ func newUIServer(t *testing.T, jsonHandler http.HandlerFunc) string {
 	return ts.URL
 }
 
+var sharedBrowserCtx context.Context
+
+func TestMain(m *testing.M) {
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.NoSandbox,
+		chromedp.DisableGPU,
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("no-first-run", true),
+		chromedp.Flag("no-default-browser-check", true),
+	)
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancelAlloc()
+
+	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
+	defer cancelBrowser()
+
+	startCtx, cancelStart := context.WithTimeout(browserCtx, 60*time.Second)
+	defer cancelStart()
+	if err := chromedp.Run(startCtx); err != nil {
+		log.Printf("chromedp unavailable, skipping UI tests: %v", err)
+		os.Exit(0)
+	}
+
+	sharedBrowserCtx = browserCtx
+	os.Exit(m.Run())
+}
+
 func browserCtx(t *testing.T) context.Context {
 	t.Helper()
-	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.NoSandbox)
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	ctx, cancel := chromedp.NewContext(sharedBrowserCtx)
 	t.Cleanup(cancel)
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	t.Cleanup(cancel)
-	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 	t.Cleanup(cancel)
 	return ctx
 }
