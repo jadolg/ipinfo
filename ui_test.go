@@ -56,18 +56,18 @@ func TestMain(m *testing.M) {
 
 func browserCtx(t *testing.T) context.Context {
 	t.Helper()
-	ctx, cancel := chromedp.NewContext(sharedBrowserCtx)
-	t.Cleanup(cancel)
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	t.Cleanup(cancel)
+	tabCtx, cancelTab := chromedp.NewContext(sharedBrowserCtx)
+	t.Cleanup(func() {
+		_ = chromedp.Cancel(tabCtx)
+		cancelTab()
+	})
+	ctx, cancelTimeout := context.WithTimeout(tabCtx, 30*time.Second)
+	t.Cleanup(cancelTimeout)
 	return ctx
 }
 
 func waitConnectivityError() chromedp.Action {
-	return chromedp.Poll(
-		`document.querySelector('#cards p.status') !== null`,
-		nil,
-	)
+	return chromedp.WaitVisible(`#cards p.status`)
 }
 
 func TestUIDisplaysIPOnSuccess(t *testing.T) {
