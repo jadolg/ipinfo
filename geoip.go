@@ -185,39 +185,23 @@ func extractAndSaveDB(editionID string, r io.Reader, destPath string) error {
 		}
 	}(gz)
 
-	mmdb, err := extractMMDB(editionID, gz)
-	if err != nil {
-		return err
-	}
-
-	// Write to a temp file in the same directory, then rename atomically
-	// so in-flight requests always see a complete file.
-	return saveAtomic(destPath, mmdb)
-}
-
-func extractMMDB(editionID string, gz *gzip.Reader) ([]byte, error) {
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
-			break
+			return fmt.Errorf("no .mmdb found in %s archive", editionID)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("tar %s: %w", editionID, err)
+			return fmt.Errorf("tar %s: %w", editionID, err)
 		}
 		if hdr.Typeflag != tar.TypeReg || !strings.HasSuffix(hdr.Name, ".mmdb") {
 			continue
 		}
-		data, err := io.ReadAll(tr)
-		if err != nil {
-			return nil, fmt.Errorf("extract %s: %w", editionID, err)
-		}
-		return data, nil
+		return saveAtomic(destPath, tr)
 	}
-	return nil, fmt.Errorf("no .mmdb found in %s archive", editionID)
 }
 
-func saveAtomic(destPath string, data []byte) error {
+func saveAtomic(destPath string, r io.Reader) error {
 	dir := filepath.Dir(destPath)
 	tmp, err := os.CreateTemp(dir, ".mmdb-download-*")
 	if err != nil {
@@ -225,7 +209,7 @@ func saveAtomic(destPath string, data []byte) error {
 	}
 	tmpName := tmp.Name()
 
-	if _, err := tmp.Write(data); err != nil {
+	if _, err := io.Copy(tmp, r); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("write temp file: %w", err)
