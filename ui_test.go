@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	headerContentType  = "Content-Type"
 	mimeJSON           = "application/json"
 	connectivityErrMsg = "Unable to detect your IP address. Please check your network connectivity."
 )
