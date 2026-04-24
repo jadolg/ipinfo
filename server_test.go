@@ -151,14 +151,7 @@ func newMux(srv *server, cfg indexConfig) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json", srv.handleJSON)
 	mux.HandleFunc("/health", srv.handleHealth)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = indexTmpl.Execute(w, cfg)
-	})
+	mux.HandleFunc("/{$}", serveIndex(renderIndex(cfg)))
 	return mux
 }
 

@@ -21,14 +21,7 @@ func newUIServer(t *testing.T, jsonHandler http.HandlerFunc) string {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json", jsonHandler)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_ = indexTmpl.Execute(w, indexConfig{})
-	})
+	mux.HandleFunc("/{$}", serveIndex(renderIndex(indexConfig{})))
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return ts.URL
@@ -181,16 +174,11 @@ func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
 	mux.HandleFunc("/json6", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "no IPv6", http.StatusServiceUnavailable)
 	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_ = indexTmpl.Execute(w, indexConfig{
+	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
+		serveIndex(renderIndex(indexConfig{
 			IPv4URL: "http://" + r.Host + "/json4",
 			IPv6URL: "http://" + r.Host + "/json6",
-		})
+		}))(w, r)
 	})
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
