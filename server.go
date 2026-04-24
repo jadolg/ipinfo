@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -30,18 +28,19 @@ type config struct {
 	LogLevel    string
 }
 
+const (
+	headerContentType = "Content-Type"
+	rootPath          = "/"
+)
+
 type server struct {
 	geo   *geoDB
 	tor   *torExitSet
 	cache *cache
 }
 
-var jsonBufPool = sync.Pool{
-	New: func() any { return new(bytes.Buffer) },
-}
-
 func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, "application/json")
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
@@ -50,30 +49,25 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 	parsed := net.ParseIP(ip)
 
 	if parsed != nil {
-		if parsed.To4() != nil {
-			ipVersionHits.WithLabelValues("4").Inc()
-		} else {
-			ipVersionHits.WithLabelValues("6").Inc()
+		version := "4"
+		if parsed.To4() == nil {
+			version = "6"
 		}
+		ipVersionHits.WithLabelValues(version).Inc()
 	}
 
-	info := s.lookupIP(ip, parsed)
-
-	buf := jsonBufPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	_ = json.NewEncoder(buf).Encode(info)
-	w.Header().Set("Content-Type", "application/json")
+	data := s.lookupIP(ip, parsed)
+	w.Header().Set(headerContentType, "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	_, _ = w.Write(buf.Bytes())
-	jsonBufPool.Put(buf)
+	_, _ = w.Write(data)
 }
 
-func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
+func (s *server) lookupIP(ip string, parsed net.IP) []byte {
 	if s.cache != nil {
 		cacheLookups.Inc()
-		if info, ok := s.cache.get(ip); ok {
+		if data, ok := s.cache.get(ip); ok {
 			cacheHits.Inc()
-			return info
+			return data
 		}
 	}
 
@@ -85,10 +79,12 @@ func (s *server) lookupIP(ip string, parsed net.IP) IPInfo {
 		info.TorExit = s.tor.contains(ip)
 	}
 
+	data, _ := json.Marshal(info)
+
 	if s.cache != nil {
-		s.cache.set(ip, info)
+		s.cache.set(ip, data)
 	}
-	return info
+	return data
 }
 
 func (s *server) enrichFromDBs(info *IPInfo, parsed net.IP) {
@@ -211,14 +207,7 @@ func run(cfg config) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json", withMetrics("/json", srv.handleJSON))
 	mux.HandleFunc("/health", withMetrics("/health", srv.handleHealth))
-	mux.HandleFunc("/", withMetrics("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(indexPage)
-	}))
+	mux.HandleFunc("/{$}", withMetrics(rootPath, serveIndex(indexPage)))
 
 	_, port, err := net.SplitHostPort(cfg.Addr)
 	if err != nil {

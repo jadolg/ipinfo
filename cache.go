@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -43,38 +42,26 @@ func (c *cache) Close() {
 	}
 }
 
-func (c *cache) get(ip string) (IPInfo, bool) {
+func (c *cache) get(ip string) ([]byte, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), cacheTimeout)
 	defer cancel()
 
 	val, err := c.rdb.Get(ctx, ip).Bytes()
 	if errors.Is(err, redis.Nil) {
-		return IPInfo{}, false
+		return nil, false
 	}
 	if err != nil {
 		log.WithError(err).WithField("ip", ip).Error("cache get failed")
 		recordError("cache", "get")
-		return IPInfo{}, false
+		return nil, false
 	}
-	var info IPInfo
-	if err := json.Unmarshal(val, &info); err != nil {
-		log.WithError(err).WithField("ip", ip).Error("cache decode failed")
-		recordError("cache", "decode")
-		return IPInfo{}, false
-	}
-	return info, true
+	return val, true
 }
 
-func (c *cache) set(ip string, info IPInfo) {
+func (c *cache) set(ip string, data []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), cacheTimeout)
 	defer cancel()
 
-	data, err := json.Marshal(info)
-	if err != nil {
-		log.WithError(err).WithField("ip", ip).Error("cache encode failed")
-		recordError("cache", "encode")
-		return
-	}
 	if err := c.rdb.Set(ctx, ip, data, c.ttl).Err(); err != nil {
 		log.WithError(err).WithField("ip", ip).Error("cache set failed")
 		recordError("cache", "set")
