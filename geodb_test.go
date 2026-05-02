@@ -15,7 +15,7 @@ const (
 )
 
 // skipIfNoDBs skips the test if the mmdb files are not present.
-func skipIfNoDBs(t *testing.T) {
+func skipIfNoDBs(t testing.TB) {
 	t.Helper()
 	for _, path := range []string{testCityDBPath, testASNDBPath} {
 		if _, err := os.Stat(path); err != nil {
@@ -24,7 +24,7 @@ func skipIfNoDBs(t *testing.T) {
 	}
 }
 
-func openTestGeoDB(t *testing.T) *geoDB {
+func openTestGeoDB(t testing.TB) *geoDB {
 	t.Helper()
 	skipIfNoDBs(t)
 	g := &geoDB{}

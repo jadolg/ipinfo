@@ -22,8 +22,6 @@ type config struct {
 	IPv6URL     string
 	DBRefresh   time.Duration
 	TorRefresh  time.Duration
-	RedisAddr   string
-	CacheTTL    time.Duration
 	MetricsAddr string
 	LogLevel    string
 }
@@ -34,9 +32,8 @@ const (
 )
 
 type server struct {
-	geo   *geoDB
-	tor   *torExitSet
-	cache *cache
+	geo *geoDB
+	tor *torExitSet
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -63,14 +60,6 @@ func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) lookupIP(ip string, parsed net.IP) []byte {
-	if s.cache != nil {
-		cacheLookups.Inc()
-		if data, ok := s.cache.get(ip); ok {
-			cacheHits.Inc()
-			return data
-		}
-	}
-
 	info := IPInfo{IPAddress: ip}
 	if parsed != nil {
 		s.enrichFromDBs(&info, parsed)
@@ -78,12 +67,7 @@ func (s *server) lookupIP(ip string, parsed net.IP) []byte {
 	if s.tor != nil {
 		info.TorExit = s.tor.contains(ip)
 	}
-
 	data, _ := json.Marshal(info)
-
-	if s.cache != nil {
-		s.cache.set(ip, data)
-	}
 	return data
 }
 
@@ -195,11 +179,6 @@ func run(cfg config) error {
 		geo: newGeoDB(cfg),
 	}
 	srv.initTor(cfg.TorRefresh)
-	if cfg.RedisAddr != "" {
-		srv.cache = newCache(cfg.RedisAddr, cfg.CacheTTL)
-		defer srv.cache.Close()
-	}
-
 	indexPage := renderIndex(indexConfig{
 		IPv4URL: normalizeJSONURL(cfg.IPv4URL),
 		IPv6URL: normalizeJSONURL(cfg.IPv6URL),

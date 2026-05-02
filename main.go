@@ -76,19 +76,6 @@ func main() {
 				Destination: &cfg.TorRefresh,
 			},
 			&cli.StringFlag{
-				Name:        "redis-addr",
-				Usage:       "Redis address for IP info caching (e.g. redis:6379)",
-				Sources:     cli.EnvVars("IPINFO_REDIS_ADDR"),
-				Destination: &cfg.RedisAddr,
-			},
-			&cli.DurationFlag{
-				Name:        "cache-ttl",
-				Value:       48 * time.Hour,
-				Usage:       "how long to cache IP info results in Redis",
-				Sources:     cli.EnvVars("IPINFO_CACHE_TTL"),
-				Destination: &cfg.CacheTTL,
-			},
-			&cli.StringFlag{
 				Name:        "metrics-addr",
 				Value:       ":9091",
 				Usage:       "address to expose Prometheus metrics on (empty to disable)",

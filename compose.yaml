@@ -5,15 +5,6 @@ services:
     volumes:
       - geoip-data:/data
 
-  redis:
-    image: redis:8-alpine
-    restart: unless-stopped
-    command: redis-server --appendonly yes --appendfsync everysec
-    expose:
-      - "6379"
-    volumes:
-      - redis-data:/data
-
   ipinfo:
     build: .
     image: ghcr.io/jadolg/ipinfo:v1
@@ -21,8 +12,6 @@ services:
     depends_on:
       init-data:
         condition: service_completed_successfully
-      redis:
-        condition: service_started
     ports:
       - "8080:8080"
       - "9091:9091"
@@ -36,8 +25,6 @@ services:
       IPINFO_TOR_REFRESH: ${IPINFO_TOR_REFRESH:-1h}
       IPINFO_IPV4_URL: ${IPINFO_IPV4_URL:-}
       IPINFO_IPV6_URL: ${IPINFO_IPV6_URL:-}
-      IPINFO_REDIS_ADDR: redis:6379
-      IPINFO_CACHE_TTL: ${IPINFO_CACHE_TTL:-48h}
     volumes:
       - geoip-data:/data
     read_only: true
@@ -48,4 +35,3 @@ services:
 
 volumes:
   geoip-data:
-  redis-data:
