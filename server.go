@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,6 +40,21 @@ type server struct {
 func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set(headerContentType, "application/json")
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *server) handleRoot(page renderedIndex) http.HandlerFunc {
+	indexHandler := serveIndex(page)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept"), "text/html") {
+			w.Header().Set(headerContentType, "text/plain")
+			_, err := io.WriteString(w, clientIP(r)+"\n")
+			if err != nil {
+				log.Error(err)
+			}
+			return
+		}
+		indexHandler(w, r)
+	}
 }
 
 func (s *server) handleJSON(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +202,7 @@ func run(cfg config) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/json", withMetrics("/json", srv.handleJSON))
 	mux.HandleFunc("/health", withMetrics("/health", srv.handleHealth))
-	mux.HandleFunc("/{$}", withMetrics(rootPath, serveIndex(indexPage)))
+	mux.HandleFunc("/{$}", withMetrics(rootPath, srv.handleRoot(indexPage)))
 
 	_, port, err := net.SplitHostPort(cfg.Addr)
 	if err != nil {
