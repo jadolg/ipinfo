@@ -167,6 +167,12 @@ const cfg = {
   ipv6Url: document.body.dataset.ipv6Url
 };
 
+function countryFlag(code) {
+  return code.toUpperCase().replace(/./g, c =>
+    String.fromCodePoint(0x1F1E6 - 65 + c.charCodeAt(0))
+  );
+}
+
 function set(el, text) {
   if (text) {
     el.textContent = text;
@@ -234,7 +240,13 @@ function makeCard(label, jsonUrl) {
       set(document.getElementById('isp-'      + label), d.ISP);
       set(document.getElementById('city-'     + label), d.City);
       set(document.getElementById('country-'  + label), d.Country);
-      set(document.getElementById('cc-'       + label), d.CountryCode);
+      const ccEl = document.getElementById('cc-' + label);
+      if (d.CountryCode) {
+        ccEl.textContent = d.CountryCode + ' ' + countryFlag(d.CountryCode);
+      } else {
+        ccEl.textContent = 'n/a';
+        ccEl.classList.add('empty');
+      }
       set(document.getElementById('location-' + label), d.Location);
 
       const torEl = document.getElementById('tor-' + label);
