@@ -114,8 +114,8 @@ func TestUIShowsTorBadge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if torText != "Yes" {
-		t.Errorf("Tor badge = %q, want Yes", torText)
+	if torText != "YES" {
+		t.Errorf("Tor badge = %q, want YES", torText)
 	}
 }
 
