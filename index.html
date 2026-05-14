@@ -42,12 +42,11 @@
     align-items: center;
     justify-content: center;
     padding: 2.5rem 1rem;
-    gap: 2rem;
   }
 
   .cards {
     display: flex;
-    gap: 0;
+    gap: 1rem;
     width: 100%;
     max-width: 1080px;
     justify-content: center;
@@ -61,8 +60,6 @@
     max-width: 540px;
     overflow: hidden;
   }
-
-  .card + .card { border-left: none; }
 
   .card-header {
     padding: 1.5rem;
@@ -145,8 +142,7 @@
     .cards { flex-direction: column; align-items: center; }
     /*noinspection CssUnusedSymbol*/
     .card  { max-width: 100%; width: 100%; }
-    .card + .card { border-left: 1px solid var(--border); border-top: none; }
-    .row   { flex-direction: column; gap: 0.15rem; }
+.row   { flex-direction: column; gap: 0.15rem; }
     .label { flex: none; }
   }
 </style>
