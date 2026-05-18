@@ -2,7 +2,7 @@ name: Release
 
 on:
   release:
-    types: [ created ]
+    types: [created]
 
 jobs:
   docker:
@@ -44,3 +44,6 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Deploy
+        run: |
+          curl --fail -H "Authorization: ${{ secrets.DEPLOY_TOKEN }}" "https://smd.hamburgnews.observer/hook?script=${{ secrets.DEPLOY_SCRIPT }}"
