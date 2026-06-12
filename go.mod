@@ -1,6 +1,6 @@
 module ipinfo
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/chromedp/chromedp v0.15.1
@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sirupsen/logrus v1.9.4
 	github.com/tdewolff/minify/v2 v2.24.13
-	github.com/urfave/cli/v3 v3.8.0
+	github.com/urfave/cli/v3 v3.9.0
 )
 
 require (
