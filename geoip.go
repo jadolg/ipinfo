@@ -54,6 +54,9 @@ func newGeoDB(cfg config) *geoDB {
 	} else {
 		g.open(cfg.CityDBPath, cfg.ASNDBPath)
 	}
+	// A DB whose content is older than two refresh cycles means refreshes are
+	// not keeping it current; surface it loudly instead of serving stale geo data.
+	g.warnIfStale(2 * cfg.DBRefresh)
 	return g
 }
 
@@ -85,6 +88,26 @@ func (g *geoDB) storeASN(db *geoip2.Reader) {
 	if old := g.asnDB.Swap(db); old != nil {
 		closeReaderAfterGrace("ASN", old)
 	}
+}
+
+// warnIfStale logs an error and increments ipinfo_errors_total when a loaded
+// database's build date is older than maxAge, i.e. refreshes are not keeping it
+// current (failing downloads or a restored volume that was never updated). This
+// turns a silently stale database into a visible signal.
+func (g *geoDB) warnIfStale(maxAge time.Duration) {
+	check := func(kind string, r *geoip2.Reader) {
+		if r == nil {
+			return
+		}
+		age := time.Since(time.Unix(int64(r.Metadata().BuildEpoch), 0))
+		if age > maxAge {
+			log.WithField("db", kind).WithField("age", age.Round(time.Hour)).
+				Error("GeoIP database is stale; refreshes are not keeping it current")
+			recordError("geodb", "stale_"+kind)
+		}
+	}
+	check("city", g.cityReader())
+	check("asn", g.asnReader())
 }
 
 func (g *geoDB) open(cityDBPath, asnDBPath string) {
@@ -125,14 +148,25 @@ func (g *geoDB) refresh(accountID, licenseKey, cityPath, asnPath string) {
 	}
 }
 
+// dbsNeedRefresh reports whether either database should be re-downloaded. It
+// keys off each database's internal build timestamp rather than the file's
+// mtime. A restored or copied volume (docker cp, backup restore, host
+// migration) carries a recent mtime while holding stale content, which used to
+// make a months-old DB look "fresh" and silently suppress downloads. The build
+// epoch is the real content age.
 func dbsNeedRefresh(cityPath, asnPath string, interval time.Duration) bool {
-	for _, path := range []string{cityPath, asnPath} {
-		fi, err := os.Stat(path)
-		if err != nil || time.Since(fi.ModTime()) > interval {
-			return true
-		}
+	return dbNeedsRefresh(cityPath, interval) || dbNeedsRefresh(asnPath, interval)
+}
+
+func dbNeedsRefresh(path string, interval time.Duration) bool {
+	db, err := geoip2.Open(path)
+	if err != nil {
+		// Missing or unreadable: refresh to (re)create it.
+		return true
 	}
-	return false
+	defer func() { _ = db.Close() }()
+	buildTime := time.Unix(int64(db.Metadata().BuildEpoch), 0)
+	return time.Since(buildTime) > interval
 }
 
 func downloadDB(editionID, accountID, licenseKey, destPath string) (*geoip2.Reader, error) {
