@@ -124,38 +124,30 @@ func TestDBsNeedRefreshMissingFile(t *testing.T) {
 	}
 }
 
-func TestDBsNeedRefreshFreshFiles(t *testing.T) {
-	f1, f2 := createTempFile(t), createTempFile(t)
-	if dbsNeedRefresh(f1, f2, time.Hour) {
-		t.Error("should not need refresh for freshly created files")
+func TestDBNeedsRefreshInvalidFile(t *testing.T) {
+	// A file that is not a valid mmdb (e.g. an empty placeholder left by a
+	// broken download) cannot have its build epoch read and must refresh.
+	if !dbNeedsRefresh(createTempFile(t), time.Hour) {
+		t.Error("should need refresh when file is not a valid mmdb")
 	}
 }
 
-func TestDBsNeedRefreshStaleFirstFile(t *testing.T) {
-	stale := createTempFile(t)
-	fresh := createTempFile(t)
-
-	old := time.Now().Add(-2 * time.Hour)
-	if err := os.Chtimes(stale, old, old); err != nil {
-		t.Fatalf("chtimes: %v", err)
-	}
-
-	if !dbsNeedRefresh(stale, fresh, time.Hour) {
-		t.Error("should need refresh when first file is stale")
+func TestDBsNeedRefreshFreshByBuildEpoch(t *testing.T) {
+	skipIfNoDBs(t)
+	// A huge interval makes the real DB's build date look fresh regardless of
+	// how old the checked-in copy is.
+	if dbsNeedRefresh(testCityDBPath, testASNDBPath, 100*365*24*time.Hour) {
+		t.Error("should not need refresh when build epoch is within the interval")
 	}
 }
 
-func TestDBsNeedRefreshStaleSecondFile(t *testing.T) {
-	fresh := createTempFile(t)
-	stale := createTempFile(t)
-
-	old := time.Now().Add(-2 * time.Hour)
-	if err := os.Chtimes(stale, old, old); err != nil {
-		t.Fatalf("chtimes: %v", err)
-	}
-
-	if !dbsNeedRefresh(fresh, stale, time.Hour) {
-		t.Error("should need refresh when second file is stale")
+func TestDBsNeedRefreshStaleByBuildEpoch(t *testing.T) {
+	skipIfNoDBs(t)
+	// The build epoch is necessarily in the past, so any positive interval this
+	// small marks the DB stale. This is the case the mtime-based check missed
+	// when a restored volume carried a recent mtime over stale content.
+	if !dbsNeedRefresh(testCityDBPath, testASNDBPath, time.Nanosecond) {
+		t.Error("should need refresh when build epoch is older than the interval")
 	}
 }
 
