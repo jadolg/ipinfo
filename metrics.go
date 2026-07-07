@@ -19,9 +19,11 @@ var (
 	}, []string{"method", "path", "status"})
 
 	httpRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "ipinfo_http_request_duration_seconds",
-		Help:    "HTTP request latency by method and path.",
-		Buckets: prometheus.DefBuckets,
+		Name: "ipinfo_http_request_duration_seconds",
+		Help: "HTTP request latency by method and path.",
+		Buckets: []float64{
+			.00005, .0001, .00025, .0005, .001, .0025, .005, .01, .025, .05, .1,
+		},
 	}, []string{"method", "path"})
 
 	ipVersionHits = promauto.NewCounterVec(prometheus.CounterOpts{
