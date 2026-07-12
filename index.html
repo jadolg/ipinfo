@@ -155,6 +155,7 @@
  * @typedef {Object} IPInfo
  * @property {string} IPAddress
  * @property {string} [ISP]
+ * @property {number} [ASN]
  * @property {string} [City]
  * @property {string} [Country]
  * @property {string} [CountryCode]
@@ -208,6 +209,7 @@ function makeCard(label, jsonUrl) {
     '<div class="status" id="status-' + label + '">Loading&hellip;</div>' +
     '<div class="rows" id="rows-' + label + '" hidden>' +
       '<div class="row"><span class="label">ISP</span><span class="value" id="isp-'             + label + '"></span></div>' +
+      '<div class="row"><span class="label">ASN</span><span class="value" id="asn-'             + label + '"></span></div>' +
       '<div class="row"><span class="label">City</span><span class="value" id="city-'           + label + '"></span></div>' +
       '<div class="row"><span class="label">Country</span><span class="value" id="country-'     + label + '"></span></div>' +
       '<div class="row"><span class="label">Country code</span><span class="value" id="cc-'     + label + '"></span></div>' +
@@ -238,6 +240,7 @@ function makeCard(label, jsonUrl) {
     .then(/** @param {IPInfo} d */ function(d) {
       document.getElementById('ip-' + label).textContent = d.IPAddress || 'unknown';
       set(document.getElementById('isp-'      + label), d.ISP);
+      set(document.getElementById('asn-'      + label), d.ASN ? 'AS' + d.ASN : '');
       set(document.getElementById('city-'     + label), d.City);
       set(document.getElementById('country-'  + label), d.Country);
       const ccEl = document.getElementById('cc-' + label);

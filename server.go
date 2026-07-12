@@ -106,6 +106,7 @@ func (s *server) enrichFromDBs(info *IPInfo, parsed net.IP) {
 	if asnDB := s.geo.asnReader(); asnDB != nil {
 		if rec, err := asnDB.ASN(parsed); err == nil {
 			info.ISP = rec.AutonomousSystemOrganization
+			info.ASN = rec.AutonomousSystemNumber
 		}
 	}
 }

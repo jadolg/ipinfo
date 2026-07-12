@@ -135,6 +135,7 @@ func TestAllFieldsPresent(t *testing.T) {
 		"IPAddress",
 		"Location",
 		"ISP",
+		"ASN",
 		"TorExit",
 		"City",
 		"Country",
@@ -200,6 +201,9 @@ func TestServerEnrichesFromGeoDB(t *testing.T) {
 	}
 	if info.ISP == "" {
 		t.Error("ISP should not be empty for 8.8.8.8")
+	}
+	if info.ASN == 0 {
+		t.Error("ASN should not be zero for 8.8.8.8")
 	}
 }
 
