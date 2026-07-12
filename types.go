@@ -4,6 +4,7 @@ type IPInfo struct {
 	IPAddress   string `json:"IPAddress"`
 	Location    string `json:"Location"`
 	ISP         string `json:"ISP"`
+	ASN         uint   `json:"ASN"`
 	TorExit     bool   `json:"TorExit"`
 	City        string `json:"City"`
 	Country     string `json:"Country"`
