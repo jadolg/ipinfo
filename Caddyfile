@@ -1,13 +1,5 @@
-ip.r4bbit.net {
+http://ip.r4bbit.net, https://ip.r4bbit.net,
+http://ipv4.r4bbit.net, https://ipv4.r4bbit.net,
+http://ipv6.r4bbit.net, https://ipv6.r4bbit.net {
 	reverse_proxy localhost:8080
-}
-
-ipv4.r4bbit.net ipv6.r4bbit.net {
-	@json path /json
-	handle @json {
-		reverse_proxy localhost:8080
-	}
-	handle {
-		redir https://ip.r4bbit.net{uri} 302
-	}
 }
