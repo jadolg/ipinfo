@@ -6,7 +6,7 @@ require (
 	github.com/chromedp/chromedp v0.16.0
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/sirupsen/logrus v1.10.0
+	github.com/sirupsen/logrus v1.10.1
 	github.com/tdewolff/minify/v2 v2.24.17
 	github.com/urfave/cli/v3 v3.11.0
 )
