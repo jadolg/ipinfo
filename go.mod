@@ -1,6 +1,6 @@
-module ipinfo
+module github.com/jadolg/ipinfo
 
-go 1.26.6
+go 1.27.1
 
 require (
 	github.com/chromedp/chromedp v0.16.0
