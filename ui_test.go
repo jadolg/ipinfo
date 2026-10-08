@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 
 	startCtx, cancelStart := context.WithTimeout(browserCtx, 60*time.Second)
 	defer cancelStart()
-	if err := chromedp.Run(startCtx); err != nil {
+	if err := chromedp.Do(startCtx); err != nil {
 		log.Printf("chromedp unavailable, skipping UI tests: %v", err)
 		os.Exit(0)
 	}
@@ -66,7 +66,7 @@ func browserCtx(t *testing.T) context.Context {
 	return ctx
 }
 
-func waitConnectivityError() chromedp.Action {
+func waitConnectivityError() chromedp.Action[chromedp.Void] {
 	return chromedp.WaitVisible(`#cards p.status`)
 }
 
@@ -81,13 +81,15 @@ func TestUIDisplaysIPOnSuccess(t *testing.T) {
 		}`))
 	})
 
-	var ipText, ispText string
-	err := chromedp.Run(browserCtx(t),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`#rows-IP`),
-		chromedp.Text(`#ip-IP`, &ipText),
-		chromedp.Text(`#isp-IP`, &ispText),
-	)
+	ctx := browserCtx(t)
+	if err := chromedp.Do(ctx, chromedp.Navigate(url), chromedp.WaitVisible(`#rows-IP`)); err != nil {
+		t.Fatal(err)
+	}
+	ipText, err := chromedp.Run(ctx, chromedp.Text(`#ip-IP`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ispText, err := chromedp.Run(ctx, chromedp.Text(`#isp-IP`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,12 +107,11 @@ func TestUIShowsTorBadge(t *testing.T) {
 		_, _ = w.Write([]byte(`{"IPAddress":"1.2.3.4","TorExit":true}`))
 	})
 
-	var torText string
-	err := chromedp.Run(browserCtx(t),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`#rows-IP`),
-		chromedp.Text(`#tor-IP`, &torText),
-	)
+	ctx := browserCtx(t)
+	if err := chromedp.Do(ctx, chromedp.Navigate(url), chromedp.WaitVisible(`#rows-IP`)); err != nil {
+		t.Fatal(err)
+	}
+	torText, err := chromedp.Run(ctx, chromedp.Text(`#tor-IP`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,12 +150,11 @@ func TestUIShowsConnectivityErrorOnBadResponse(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			url := newUIServer(t, tc.handler)
-			var msgText string
-			err := chromedp.Run(browserCtx(t),
-				chromedp.Navigate(url),
-				waitConnectivityError(),
-				chromedp.Text(`#cards p.status`, &msgText),
-			)
+			ctx := browserCtx(t)
+			if err := chromedp.Do(ctx, chromedp.Navigate(url), waitConnectivityError()); err != nil {
+				t.Fatal(err)
+			}
+			msgText, err := chromedp.Run(ctx, chromedp.Text(`#cards p.status`))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -183,15 +183,20 @@ func TestUIHidesFailedCardWhenOtherSucceeds(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	var ipText string
-	var noConnMsg bool
-	err := chromedp.Run(browserCtx(t),
+	ctx := browserCtx(t)
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL),
 		chromedp.WaitVisible(`#rows-IPv4`),
 		chromedp.WaitNotPresent(`#ip-IPv6`),
-		chromedp.Text(`#ip-IPv4`, &ipText),
-		chromedp.Evaluate(`document.querySelector('#cards p.status') === null`, &noConnMsg),
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ipText, err := chromedp.Run(ctx, chromedp.Text(`#ip-IPv4`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	noConnMsg, err := chromedp.Run(ctx, chromedp.Evaluate[bool](`document.querySelector('#cards p.status') === null`))
 	if err != nil {
 		t.Fatal(err)
 	}
