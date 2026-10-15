@@ -3,7 +3,7 @@ module github.com/jadolg/ipinfo
 go 1.27.2
 
 require (
-	github.com/chromedp/chromedp v0.19.1
+	github.com/chromedp/chromedp v0.21.0
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/sirupsen/logrus v1.10.2
@@ -14,7 +14,8 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/cdproto v0.157.4 // indirect
+	github.com/chromedp/cdproto v0.157.8 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260213210345-44df1a37e875 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
