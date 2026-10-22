@@ -7,7 +7,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/sirupsen/logrus v1.10.2
-	github.com/tdewolff/minify/v2 v2.24.19
+	github.com/tdewolff/minify/v2 v2.24.22
 	github.com/urfave/cli/v3 v3.14.0
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
-	github.com/tdewolff/parse/v2 v2.8.16 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	github.com/tdewolff/parse/v2 v2.8.19 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
